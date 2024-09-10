@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from typing import cast, List, Optional, Tuple, Union
 
 import attr
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import TimeSeriesData
 from scipy.stats import norm, t, ttest_ind  # @manual
@@ -258,10 +261,12 @@ class PercentageChange:
         if self.num_series > 1:
             return np.array(
                 [
-                    False
-                    if cast(np.ndarray, self.upper)[i] > 1.0
-                    and cast(np.ndarray, self.lower)[i] < 1
-                    else True
+                    (
+                        False
+                        if cast(np.ndarray, self.upper)[i] > 1.0
+                        and cast(np.ndarray, self.lower)[i] < 1
+                        else True
+                    )
                     for i in range(self.current.num_series)
                 ]
             )
@@ -347,7 +352,9 @@ class PercentageChange:
         n_1 = len(self.previous)
         n_2 = len(self.current)
 
-        if n_1 == 0 or n_2 == 0:
+        # Require both populations to be nonempty, and their sum larger than 2, because the
+        # t-test has (n_1 + n_2 - 2) degrees of freedom.
+        if n_1 == 0 or n_2 == 0 or (n_1 == n_2 == 1):
             return 0.0
 
         # pyre-ignore[58]: * is not supported for operand types int and Union[float, np.ndarray].
@@ -385,11 +392,12 @@ class PercentageChange:
         n_1 = len(self.previous)
         n_2 = len(self.current)
 
-        # if both control and test have one value
-        # then using a t test does not make any sense
-        if n_1 == 1 and n_2 == 1:
-            self._t_score = np.inf
+        # if both control and test have one value, then using a t test does not make any sense
+        # Return nan, which is the same as scipy's ttest_ind
+        if n_1 == n_2 == 1:
+            self._t_score = np.nan
             self._p_value = 0.0
+            return
 
         # when sample size is 1, scipy's t test gives nan,
         # hence we separately handle this case
@@ -443,8 +451,8 @@ class PercentageChange:
         self._t_score = np.zeros(num_series)
         # We are using a two-sided test here, so we take inverse_tcdf(self._p_value / 2) with df = len(self.current) + len(self.previous) - 2
 
-        _t_score: np.ndarray = self._t_score
-        _p_value: np.ndarray = cast(np.ndarray, self._p_value)
+        _t_score: npt.NDArray = self._t_score
+        _p_value: npt.NDArray = cast(np.ndarray, self._p_value)
         for i in range(self.current.num_series):
             if t_value_start[i] < 0:
                 _t_score[i] = t.ppf(_p_value[i] / 2, self._get_df())
@@ -647,11 +655,13 @@ class AnomalyResponse:
 
         return AnomalyResponse(
             scores=self.scores[-N:],
-            confidence_band=None
-            if cb is None
-            else ConfidenceBand(
-                upper=cb.upper[-N:],
-                lower=cb.lower[-N:],
+            confidence_band=(
+                None
+                if cb is None
+                else ConfidenceBand(
+                    upper=cb.upper[-N:],
+                    lower=cb.lower[-N:],
+                )
             ),
             predicted_ts=None if pts is None else pts[-N:],
             anomaly_magnitude_ts=self.anomaly_magnitude_ts[-N:],

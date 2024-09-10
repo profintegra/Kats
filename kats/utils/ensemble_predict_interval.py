@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """Ensemble Prediction Interval (EPI)
 
 This is an Ensemble method to estimate the prediction interval for any forecasting models
@@ -20,6 +22,7 @@ from typing import Optional, Tuple, Type
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy
 from kats.consts import Params, TimeSeriesData
@@ -29,7 +32,7 @@ _LOGGER: logging.Logger = logging.getLogger()
 
 
 def mean_confidence_interval(
-    data: np.ndarray,
+    data: npt.NDArray,
     confidence: float = 0.8,
 ) -> Tuple[float, float, float]:
     data = 1.0 * np.array(data)
@@ -156,11 +159,11 @@ class ensemble_predict_interval:
         self.ensemble_size: int = ensemble_size
 
         # initial error matrix
-        self.error_matrix: np.ndarray = np.empty([self.n_block, self.block_size])
+        self.error_matrix: npt.NDArray = np.empty([self.n_block, self.block_size])
         self.error_matrix_flag: bool = False
 
         # initial fcst results
-        self.ensemble_fcst: np.ndarray = np.empty([1, 1])
+        self.ensemble_fcst: npt.NDArray = np.empty([1, 1])
         self.projection_flag: bool = False
 
         self.multiprocessing: bool = multiprocessing

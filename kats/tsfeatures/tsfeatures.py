@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """TsFeatures is a module for performing adhoc feature engineering on time series
 data using different statistics.
 
@@ -23,6 +25,7 @@ from itertools import groupby
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import statsmodels.api as sm
 from deprecated import deprecated
@@ -30,11 +33,23 @@ from scipy import stats
 from scipy.linalg import toeplitz
 from scipy.signal import periodogram  # @manual
 from statsmodels.stats.diagnostic import het_arch
+
+# pyre-fixme[21]: Could not find name `STL` in `statsmodels.tsa.seasonal`.
 from statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.stattools import acf, kpss, pacf
 
 try:
+    import llvmlite  # @manual
+    import numba  # @manual
+
+    # TODO(sugak): don't use numba with incompatible version of LLVMlite.
+    # This is a temporary workaround to facilitate Numpy upgrade. The import
+    # would succeed but fail when used.
+    if numba.__version__ == "0.55.0" and llvmlite.__version__ == "0.42.0":
+        raise ImportError("Incompatible Numba and LLVMlite versions")
+
     from numba import jit  # @manual
+
 except ImportError:
     logging.warning("numba is not installed. jit compilation of tsfeatures is disabled")
 
@@ -535,7 +550,7 @@ class TsFeatures:
 
         return ts_features
 
-    def _transform_1d(self, x: np.ndarray, ts: TimeSeriesData) -> Dict[str, float]:
+    def _transform_1d(self, x: npt.NDArray, ts: TimeSeriesData) -> Dict[str, float]:
         """
         Transform single (univariate) time series
 
@@ -566,7 +581,7 @@ class TsFeatures:
     # length
     @staticmethod
     @jit(nopython=True)
-    def get_length(x: np.ndarray) -> float:
+    def get_length(x: npt.NDArray) -> float:
         """
         Getting the length of time series array.
 
@@ -582,7 +597,7 @@ class TsFeatures:
     # mean
     @staticmethod
     @jit(nopython=True)
-    def get_mean(x: np.ndarray) -> float:
+    def get_mean(x: npt.NDArray) -> float:
         """
         Getting the average value of time series array.
 
@@ -598,7 +613,7 @@ class TsFeatures:
     # variance
     @staticmethod
     @jit(nopython=True)
-    def get_var(x: np.ndarray) -> float:
+    def get_var(x: npt.NDArray) -> float:
         """
         Getting the variance of time series array.
 
@@ -614,7 +629,7 @@ class TsFeatures:
     # spectral entropy
     @staticmethod
     @jit(forceobj=True)
-    def get_spectral_entropy(x: np.ndarray, freq: int = 1) -> float:
+    def get_spectral_entropy(x: npt.NDArray, freq: int = 1) -> float:
         """
         Getting normalized Shannon entropy of power spectral density.
         PSD is calculated using scipy's periodogram.
@@ -639,7 +654,7 @@ class TsFeatures:
     # lumpiness
     @staticmethod
     @jit(forceobj=True)
-    def get_lumpiness(x: np.ndarray, window_size: int = 20) -> float:
+    def get_lumpiness(x: npt.NDArray, window_size: int = 20) -> float:
         """
         Calculating the lumpiness of time series.
         Lumpiness is defined as the variance of the chunk-wise variances.
@@ -659,7 +674,7 @@ class TsFeatures:
     # stability
     @staticmethod
     @jit(forceobj=True)
-    def get_stability(x: np.ndarray, window_size: int = 20) -> float:
+    def get_stability(x: npt.NDArray, window_size: int = 20) -> float:
         """
         Calculate the stability of time series.
         Stability is defined as the variance of chunk-wise means.
@@ -682,7 +697,7 @@ class TsFeatures:
     # https://github.com/numba/numba/issues/7215
     # @jit(forceobj=True)
     def get_statistics(
-        x: np.ndarray,
+        x: npt.NDArray,
         dict_features: Optional[Dict[str, Callable[[np.ndarray], float]]] = None,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
@@ -717,7 +732,7 @@ class TsFeatures:
     @staticmethod
     @jit(forceobj=True)
     def get_stl_features(
-        x: np.ndarray,
+        x: npt.NDArray,
         period: int = 7,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
@@ -743,6 +758,7 @@ class TsFeatures:
         stl_features = {}
 
         # STL decomposition
+        # pyre-fixme[16]: Module `seasonal` has no attribute `STL`.
         res = STL(x, period=period).fit()
 
         # strength of trend
@@ -781,7 +797,7 @@ class TsFeatures:
     @jit(forceobj=True)
     @deprecated(version="0.2.0", reason="Renamed to get_level_shift_features")
     def get_level_shift(
-        x: np.ndarray,
+        x: npt.NDArray,
         window_size: int = 20,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
@@ -794,7 +810,7 @@ class TsFeatures:
     @staticmethod
     @jit(forceobj=True)
     def get_level_shift_features(
-        x: np.ndarray,
+        x: npt.NDArray,
         window_size: int = 20,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
@@ -845,7 +861,7 @@ class TsFeatures:
     # Flat spots
     @staticmethod
     @jit(forceobj=True)
-    def get_flat_spots(x: np.ndarray, nbins: int = 10) -> int:
+    def get_flat_spots(x: npt.NDArray, nbins: int = 10) -> int:
         """
         Getting flat spots: Maximum run-lengths across equally-sized segments of time series
 
@@ -878,7 +894,7 @@ class TsFeatures:
     # Hurst Exponent
     @staticmethod
     @jit(forceobj=True)
-    def get_hurst(x: np.ndarray, lag_size: int = 30) -> float:
+    def get_hurst(x: npt.NDArray, lag_size: int = 30) -> float:
         """
         Getting: Hurst Exponent wiki: https://en.wikipedia.org/wiki/Hurst_exponent
 
@@ -1026,7 +1042,7 @@ class TsFeatures:
     @staticmethod
     @jit(forceobj=True)
     def get_acfpacf_features(
-        x: np.ndarray,
+        x: npt.NDArray,
         acfpacf_lag: int = 6,
         period: int = 7,
         extra_args: Optional[Dict[str, bool]] = None,
@@ -1148,7 +1164,7 @@ class TsFeatures:
     # standard deviation of the first derivative
     @staticmethod
     @jit(forceobj=True)
-    def get_std1st_der(x: np.ndarray) -> float:
+    def get_std1st_der(x: npt.NDArray) -> float:
         """
         Calculate the standard deviation of the first derivative of the time series.
 
@@ -1166,7 +1182,7 @@ class TsFeatures:
     # crossing points
     @staticmethod
     @jit(nopython=True)
-    def get_crossing_points(x: np.ndarray) -> float:
+    def get_crossing_points(x: npt.NDArray) -> float:
         """
         Calculate the number of crossing points.
 
@@ -1190,7 +1206,7 @@ class TsFeatures:
     # binarize mean
     @staticmethod
     @jit(nopython=True)
-    def get_binarize_mean(x: np.ndarray) -> float:
+    def get_binarize_mean(x: npt.NDArray) -> float:
         """
         Converts time series array into a binarized version.
 
@@ -1210,7 +1226,7 @@ class TsFeatures:
     # KPSS unit root test
     @staticmethod
     @jit(forceobj=True)
-    def get_unitroot_kpss(x: np.ndarray) -> float:
+    def get_unitroot_kpss(x: npt.NDArray) -> float:
         """
         Get the test statistic based on KPSS test.
 
@@ -1231,7 +1247,7 @@ class TsFeatures:
     # heterogeneity
     @staticmethod
     @jit(forceobj=True)
-    def get_het_arch(x: np.ndarray) -> float:
+    def get_het_arch(x: npt.NDArray) -> float:
         """
         Compute Engle's test for autogregressive Conditional Heteroscedasticity (ARCH).
 
@@ -1250,7 +1266,7 @@ class TsFeatures:
     # histogram mode
     @staticmethod
     @jit(nopython=True)
-    def get_histogram_mode(x: np.ndarray, nbins: int = 10) -> float:
+    def get_histogram_mode(x: npt.NDArray, nbins: int = 10) -> float:
         """
         Measures the mode of the data vector using histograms with a given number of bins.
         Reference: https://cran.r-project.org/web/packages/tsfeatures/vignettes/tsfeatures.html
@@ -1270,7 +1286,7 @@ class TsFeatures:
     @staticmethod
     @jit(forceobj=True)
     def get_special_ac(
-        x: np.ndarray,
+        x: npt.NDArray,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
     ) -> Dict[str, float]:
@@ -1306,7 +1322,7 @@ class TsFeatures:
         if extra_args is not None and extra_args.get("firstzero_ac", default_status):
             j = 0
             while j < len(AC) - 1:
-                if AC[j] > 0 > AC[j + 1]:
+                if AC[j] > 0 and AC[j + 1] < 0:
                     break
                 else:
                     j += 1
@@ -1316,7 +1332,7 @@ class TsFeatures:
     # Linearity
     @staticmethod
     @jit(forceobj=True)
-    def get_linearity(x: np.ndarray) -> float:
+    def get_linearity(x: npt.NDArray) -> float:
         """
         Compute linearity feature: R square from a fitted linear regression.
 
@@ -1333,7 +1349,7 @@ class TsFeatures:
     # Holt Parameters (2)
     @staticmethod
     def get_holt_params(
-        x: np.ndarray,
+        x: npt.NDArray,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
     ) -> Dict[str, float]:
@@ -1368,7 +1384,7 @@ class TsFeatures:
     # Holt Winter’s Parameters (3)
     @staticmethod
     def get_hw_params(
-        x: np.ndarray,
+        x: npt.NDArray,
         period: int = 7,
         extra_args: Optional[Dict[str, bool]] = None,
         default_status: bool = True,
@@ -1686,7 +1702,7 @@ class TsFeatures:
 
     @staticmethod
     @jit(nopython=True)
-    def _ewma(arr: np.ndarray, span: int, min_periods: int) -> np.ndarray:
+    def _ewma(arr: npt.NDArray, span: int, min_periods: int) -> npt.NDArray:
         """
         Exponentialy weighted moving average specified by a decay ``window``
         to provide better adjustments for small windows via:
@@ -1694,7 +1710,7 @@ class TsFeatures:
                    (1 + (1-a) + (1-a)^2 + ... + (1-a)^n).
 
         Args:
-            arr : np.ndarray; A single dimenisional numpy array.
+            arr : npt.NDArray; A single dimenisional numpy array.
             span : int; The decay window, or 'span'.
             min_periods: int; Minimum amount of data points we'd like to include
                 in the output.
@@ -1724,7 +1740,7 @@ class TsFeatures:
     @staticmethod
     @jit(forceobj=True)
     def _get_nowcasting_np(
-        x: np.ndarray,
+        x: npt.NDArray,
         window: int = 5,
         n_fast: int = 12,
         n_slow: int = 21,
@@ -1815,7 +1831,7 @@ class TsFeatures:
     # Nowcasting features (7)
     @staticmethod
     def get_nowcasting(
-        x: np.ndarray,
+        x: npt.NDArray,
         window: int = 5,
         n_fast: int = 12,
         n_slow: int = 21,
@@ -1924,6 +1940,7 @@ class TsFeatures:
                 _period = int(np.min(detected["seasonalities"]))
             else:
                 _period = 7
+            # pyre-fixme[16]: Module `seasonal` has no attribute `STL`.
             res = STL(ts.value.values, period=_period).fit()
 
             if extra_args is not None and extra_args.get(
@@ -2002,17 +2019,21 @@ class TsFeatures:
         try:
             n = len(ts)
             index = ts.time_to_index()
+            # pyre-fixme[16]: `DatetimeIndex` has no attribute `dayofweek`.
             dow = index.dayofweek
 
             if extra_args is not None and extra_args.get("time_years", default_status):
+                # pyre-fixme[16]: `DatetimeIndex` has no attribute `year`.
                 time_features["time_years"] = index.year.nunique()
 
             if extra_args is not None and extra_args.get("time_months", default_status):
+                # pyre-fixme[16]: `DatetimeIndex` has no attribute `strftime`.
                 time_features["time_months"] = index.strftime("%Y-%m").nunique()
 
             if extra_args is not None and extra_args.get(
                 "time_monthsofyear", default_status
             ):
+                # pyre-fixme[16]: `DatetimeIndex` has no attribute `month`.
                 time_features["time_monthsofyear"] = index.month.nunique()
 
             if extra_args is not None and extra_args.get("time_weeks", default_status):
@@ -2021,6 +2042,7 @@ class TsFeatures:
             if extra_args is not None and extra_args.get(
                 "time_weeksofyear", default_status
             ):
+                # pyre-fixme[16]: `DatetimeIndex` has no attribute `weekofyear`.
                 time_features["time_weeksofyear"] = index.weekofyear.nunique()
 
             if extra_args is not None and extra_args.get("time_days", default_status):
@@ -2029,6 +2051,7 @@ class TsFeatures:
             if extra_args is not None and extra_args.get(
                 "time_daysofyear", default_status
             ):
+                # pyre-fixme[16]: `DatetimeIndex` has no attribute `dayofyear`.
                 time_features["time_daysofyear"] = index.dayofyear.nunique()
 
             if extra_args is not None and extra_args.get(
@@ -2114,7 +2137,10 @@ class TsCalenderFeatures:
 
     def get_features(
         self, data: Union[TimeSeriesData, pd.Series], raw: bool = False
-    ) -> Union[pd.DataFrame, np.ndarray,]:
+    ) -> Union[
+        pd.DataFrame,
+        np.ndarray,
+    ]:
 
         if isinstance(data, TimeSeriesData):
             timestamps = data.time.dt
@@ -2206,8 +2232,8 @@ class TsFourierFeatures:
     @staticmethod
     @jit(nopython=True)
     def _compute_fourier_order(
-        data: np.ndarray, period: np.ndarray, order: np.ndarray
-    ) -> np.ndarray:
+        data: npt.NDArray, period: npt.NDArray, order: npt.NDArray
+    ) -> npt.NDArray:
         """
         Compute fourier order from given data and order.
 

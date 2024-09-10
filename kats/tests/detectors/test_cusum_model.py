@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from operator import attrgetter
 from typing import Callable
 from unittest import TestCase
@@ -21,6 +23,7 @@ from kats.detectors.cusum_model import (
     CusumScoreFunction,
     VectorizedCUSUMDetectorModel,
 )
+
 from parameterized.parameterized import parameterized
 
 
@@ -1063,6 +1066,7 @@ class TestCallVectorizedCUSUM(TestCase):
         )
         anom1 = d1.fit_predict(data=self.ts[20:], historical_data=self.ts[:20])
 
+        # pyre-fixme[16]: `bool` has no attribute `sum`.
         self.assertEqual((anom1.scores.time == anom.scores.time).sum(0), 90)
         self.assertEqual(np.round(anom1.scores.value - anom.scores.value, 5).sum(0), 0)
         self.assertEqual(
@@ -1100,6 +1104,7 @@ class TestCallVectorizedCUSUM(TestCase):
             data=self.ts_tz_aware[20:], historical_data=self.ts_tz_aware[:20]
         )
 
+        # pyre-fixme[16]: `bool` has no attribute `sum`.
         self.assertEqual((anom1.scores.time == anom.scores.time).sum(0), 90)
         self.assertEqual(np.round(anom1.scores.value - anom.scores.value, 5).sum(0), 0)
         self.assertEqual(
@@ -1137,6 +1142,7 @@ class TestCallVectorizedCUSUM(TestCase):
             data=self.ts_irregular[20:], historical_data=self.ts_irregular[:20]
         )
 
+        # pyre-fixme[16]: `bool` has no attribute `sum`.
         self.assertEqual((anom1.scores.time == anom.scores.time).sum(0), 90)
         self.assertEqual(np.round(anom1.scores.value - anom.scores.value, 5).sum(0), 0)
         self.assertEqual(
@@ -1171,6 +1177,7 @@ class TestCallVectorizedCUSUM(TestCase):
         )
         anom1 = d1.fit_predict(data=self.ts[20:], historical_data=self.ts[:20])
 
+        # pyre-fixme[16]: `bool` has no attribute `sum`.
         self.assertEqual((anom1.scores.time == anom.scores.time).sum(0), 90)
         self.assertEqual(np.round(anom1.scores.value - anom.scores.value, 5).sum(0), 0)
         self.assertEqual(
@@ -1202,6 +1209,7 @@ class TestCallVectorizedCUSUM(TestCase):
         )
         anom1 = d1.fit_predict(self.ts)
 
+        # pyre-fixme[16]: `bool` has no attribute `sum`.
         self.assertEqual((anom1.scores.time == anom.scores.time).sum(0), 110)
         self.assertEqual(np.round(anom1.scores.value - anom.scores.value, 5).sum(0), 0)
         self.assertEqual(

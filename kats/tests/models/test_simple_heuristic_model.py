@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import unittest
 from unittest import TestCase
 
@@ -13,6 +15,7 @@ from kats.models.simple_heuristic_model import (
     SimpleHeuristicModel,
     SimpleHeuristicModelParams,
 )
+
 from parameterized.parameterized import parameterized
 
 test_univariate_df = pd.DataFrame(

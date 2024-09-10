@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import logging
 from typing import Any, Optional, Sequence
 
@@ -17,6 +19,7 @@ from scipy.stats import norm, zscore  # @manual
 class RobustStatChangePoint(TimeSeriesChangePoint):
     def __init__(
         self,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         start_time: pd.Timestamp,
         end_time: pd.Timestamp,
         confidence: float,

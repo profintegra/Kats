@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import unittest
 from datetime import datetime, timedelta
 from unittest import TestCase
@@ -12,9 +14,11 @@ import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.data.utils import load_air_passengers, load_data
 from kats.detectors.residual_translation import KDEResidualTranslator
-from kats.utils.decomposition import TimeSeriesDecomposition
+from kats.utils.decomposition import SeasonalityHandler, TimeSeriesDecomposition
 from kats.utils.simulator import Simulator
 from scipy.stats import ks_2samp
+
+# pyre-fixme[21]: Could not find name `STL` in `statsmodels.tsa.seasonal`.
 from statsmodels.tsa.seasonal import seasonal_decompose, STL
 
 
@@ -293,6 +297,17 @@ class DecompositionTest(TestCase):
 
         m.plot()
 
+    def test_seasnality_handler(self) -> None:
+        sh_data = SeasonalityHandler(
+            data=self.ts_data_daily, seasonal_period=24 * 60 * 60
+        )
+        historical_data = sh_data.remove_seasonality()
+        self.assertNotEqual(self.ts_data_daily, historical_data)
+
+        sh_data = SeasonalityHandler(data=self.ts_data_daily, seasonal_period="daily")
+        historical_data = sh_data.remove_seasonality()
+        self.assertNotEqual(self.ts_data_daily, historical_data)
+
     def test_multiplicative_assert(self) -> None:
         data_new = self.ts_data.to_dataframe().copy()
         data_new["y"] = -1.0 * data_new["y"]
@@ -362,6 +377,7 @@ class DecompositionTest(TestCase):
         )
 
         # check if decomposition does what it intends to do
+        # pyre-fixme[16]: Optional type has no attribute `value`.
         stl = STL(dense_dates_df.reset_index().value, period=2)
         true_results = stl.fit()
         self.assertTrue(
@@ -376,6 +392,7 @@ class DecompositionTest(TestCase):
                 == decomp["trend"].to_dataframe()["trend"].values
             ).all()
         )
+        # pyre-fixme[16]: Module `seasonal` has no attribute `STL`.
         stl = STL(dense_dates_df.reset_index().value, period=144, robust=True)
         true_results = stl.fit()
         self.assertTrue(
@@ -420,9 +437,11 @@ class DecompositionTest(TestCase):
         # dates are sparse, there are some gaps between dates
         sparse_dates_df = dense_dates_ts.to_dataframe().copy()
         sparse_dates_df["time"] = sparse_dates_df["time"].map(
-            lambda x: x + pd.Timedelta(365, "D")
-            if (x >= pd.Timestamp(2021, 1, 2)) & (x < pd.Timestamp(2021, 1, 3))
-            else x
+            lambda x: (
+                x + pd.Timedelta(365, "D")
+                if (x >= pd.Timestamp(2021, 1, 2)) & (x < pd.Timestamp(2021, 1, 3))
+                else x
+            )
         )
         sparse_dates_ts = TimeSeriesData(sparse_dates_df)
 
@@ -460,6 +479,7 @@ class DecompositionTest(TestCase):
         )
 
         # check if decomposition does what it intends to do
+        # pyre-fixme[16]: Optional type has no attribute `value`.
         stl = STL(sparse_dates_df.reset_index().value, period=2)
         true_results = stl.fit()
         self.assertTrue(
@@ -474,6 +494,7 @@ class DecompositionTest(TestCase):
                 == decomp["trend"].to_dataframe()["trend"].values
             ).all()
         )
+        # pyre-fixme[16]: Module `seasonal` has no attribute `STL`.
         stl = STL(sparse_dates_df.reset_index().value, period=144, robust=True)
         true_results = stl.fit()
         self.assertTrue(
@@ -519,7 +540,7 @@ class KDEResidualTranslatorTest(TestCase):
         self._residual = self._y - self._yhat
 
     def test_setup(self) -> None:
-        self.assertEquals(self._yhat.value.isnull().sum(), 7)
+        self.assertEqual(self._yhat.value.isnull().sum(), 7)
 
     def test_illegal_truncated_fracs(self) -> None:
         with self.assertRaises(ValueError):

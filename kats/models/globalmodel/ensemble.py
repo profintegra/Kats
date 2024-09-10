@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import logging
 import time
 from multiprocessing import cpu_count
@@ -258,6 +260,7 @@ class GMEnsemble:
         fcsts: List[np.ndarray],
         steps: int,
         raw: bool,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         first_timestamp: Optional[pd.Timestamp] = None,
         col_names: Optional[List[str]] = None,
     ) -> Tuple[Any, Any]:

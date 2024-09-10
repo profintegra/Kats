@@ -3,12 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import collections
 import logging
 from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
 
 import joblib
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -510,7 +513,7 @@ class GMModel:
         # pyre-fixme[2]: Parameter annotation cannot contain `Any`.
         fcst_store: Dict[Any, List[np.ndarray]],
         steps: int,
-        first_time: np.ndarray,
+        first_time: npt.NDArray,
     ) -> Dict[Any, pd.DataFrame]:
         """
         Helper function for transforming raw forecast data into pd.DataFrame.
@@ -543,15 +546,14 @@ class GMModel:
         for i, idx in enumerate(ids):
 
             df = pd.DataFrame(
-                fcst[i].transpose()[
-                    :steps,
-                ],
+                fcst[i].transpose()[:steps,],
                 columns=cols,
             )
             df["time"] = pd.date_range(
                 first_time[i], freq=self.params.freq, periods=steps
             )
             if "actual" in fcst_store:
+                # pyre-fixme[61]: `actual` is undefined, or not always defined.
                 df["actual"] = actual[i]
             ans[idx] = df
         return ans
@@ -649,12 +651,12 @@ class GMModel:
         info = {
             "gmparam_string": self.params.to_string(),
             "state_dict": self.rnn.state_dict() if self.rnn is not None else None,
-            "encoder_state_dict": self.encoder.state_dict()
-            if self.encoder is not None
-            else None,
-            "decoder_state_dict": self.decoder.state_dict()
-            if self.decoder is not None
-            else None,
+            "encoder_state_dict": (
+                self.encoder.state_dict() if self.encoder is not None else None
+            ),
+            "decoder_state_dict": (
+                self.decoder.state_dict() if self.decoder is not None else None
+            ),
         }
         with open(file_name, "wb") as f:
             joblib.dump(info, f)
@@ -1097,7 +1099,11 @@ class GMModel:
                 cur_step + 1
             )
 
-            (x_t, anchor_level, x_lt,) = self._process_s2s(
+            (
+                x_t,
+                anchor_level,
+                x_lt,
+            ) = self._process_s2s(
                 prev_idx, cur_idx, batch.x, x_lt, period, params.input_window
             )
 

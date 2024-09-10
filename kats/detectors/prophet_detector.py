@@ -3,19 +3,24 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 This module contains code to implement the Prophet algorithm
 as a Detector Model.
 """
 
 import logging
+from contextlib import ExitStack
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 from fbprophet import Prophet
+from fbprophet.make_holidays import make_holidays_df
 from fbprophet.serialize import model_from_json, model_to_json
+
 from kats.consts import (
     DataError,
     DataInsufficientError,
@@ -34,6 +39,47 @@ PROPHET_VALUE_COLUMN = "y"
 PROPHET_YHAT_COLUMN = "yhat"
 PROPHET_YHAT_LOWER_COLUMN = "yhat_lower"
 PROPHET_YHAT_UPPER_COLUMN = "yhat_upper"
+HOLIDAY_NAMES_COLUMN_NAME = "holiday"
+HOLIDAY_DATES_COLUMN_NAME = "ds"
+import os
+import sys
+
+NOT_SUPPRESS_PROPHET_FIT_LOGS_VAR_NAME = "NOT_SUPPRESS_PROPHET_FIT_LOGS"
+
+
+# this is a bug in prophet which was discussed in open source thread
+# issues was also suggested
+# details https://github.com/facebook/prophet/issues/223#issuecomment-326455744
+class SilentStdoutStderr(object):
+    """
+    Logger manager to temporarily silence stdout and stderr. Should be using
+    """
+
+    # pyre-fixme typing
+    stdout, stderr = sys.__stdout__.fileno(), sys.__stderr__.fileno()  # type: ignore
+
+    def __enter__(self) -> None:
+
+        # pyre-fixme typing # type: ignore
+        self.devnull = os.open(os.devnull, os.O_RDWR)
+        # pyre-fixme typing
+        self.orig_stdout, self.orig_stderr = os.dup(self.stdout), os.dup(self.stderr)  # type: ignore
+        # flushing everythoing before rerouting not to miss previous output
+        print(flush=True)
+        # point stdout, stderr to /dev/null
+        os.dup2(self.devnull, self.stdout)
+        os.dup2(self.devnull, self.stderr)
+
+    def __exit__(self, *_) -> None:  # type: ignore
+        # flushing everything not to pring after rerouting
+        print(flush=True)
+        # restore stdout, stderr back
+        os.dup2(self.orig_stdout, self.stdout)  # pyre-fixme
+        os.dup2(self.orig_stderr, self.stderr)  # pyre-fixme
+        # close all file descriptors
+        for file in [self.devnull, self.orig_stdout, self.orig_stderr]:  # pyre-fixme
+            os.close(file)
+
 
 # Previously assumed Prophet CI width was computed based on sample stddev,
 # where uncertainty_samples was num of samples. Also previously mistakenly
@@ -135,13 +181,30 @@ class SeasonalityTypes(Enum):
     WEEKEND = 3
 
 
-EMPTY_LIST: List[SeasonalityTypes] = []
+USER_HOLIDAY_NAME = "user_provided_holiday"
+
+
+def to_seasonality(seasonality: Union[str, SeasonalityTypes]) -> SeasonalityTypes:
+    if isinstance(seasonality, str):
+        try:
+            return SeasonalityTypes[seasonality.upper()]
+        except KeyError:
+            raise ValueError(
+                f"Invalid seasonality type: {seasonality}. Valid types are: {list(SeasonalityTypes)}"
+            )
+    elif isinstance(seasonality, SeasonalityTypes):
+        return seasonality
+    else:
+        raise ValueError(
+            f"Expected string or SeasonalityTypes, got {type(seasonality)} instead"
+        )
 
 
 def seasonalities_to_dict(
     seasonalities: Union[
         SeasonalityTypes,
         List[SeasonalityTypes],
+        List[str],
         Dict[SeasonalityTypes, Union[bool, str]],
     ]
 ) -> Dict[SeasonalityTypes, Union[bool, str]]:
@@ -149,7 +212,9 @@ def seasonalities_to_dict(
     if isinstance(seasonalities, SeasonalityTypes):
         seasonalities = {seasonalities: True}
     elif isinstance(seasonalities, list):
-        seasonalities = {seasonality: True for seasonality in seasonalities}
+        seasonalities = {
+            to_seasonality(seasonality): True for seasonality in seasonalities
+        }
     elif seasonalities is None:
         seasonalities = {}
     return seasonalities
@@ -215,6 +280,28 @@ def prophet_weekend_masks(
     return additional_seasonalities
 
 
+def get_holiday_dates(
+    holidays: Optional[pd.DataFrame] = None,
+    country_holidays: Optional[str] = None,
+    dates: Optional[pd.Series] = None,
+) -> pd.Series:
+    if dates is None:
+        return pd.Series()
+    year_list = list({x.year for x in dates})
+    all_holidays = pd.DataFrame()
+    if holidays is not None:
+        all_holidays = holidays.copy()
+    if country_holidays:
+        country_holidays_df = make_holidays_df(
+            year_list=year_list, country=country_holidays
+        )
+        all_holidays = pd.concat((all_holidays, country_holidays_df), sort=False)
+    all_holidays = pd.to_datetime(
+        pd.Series(list({x.date() for x in pd.to_datetime(all_holidays.ds)}))
+    ).sort_values(ignore_index=True)
+    return all_holidays
+
+
 class ProphetDetectorModel(DetectorModel):
     """Prophet based anomaly detection model.
 
@@ -253,9 +340,13 @@ class ProphetDetectorModel(DetectorModel):
             Union[
                 SeasonalityTypes,
                 List[SeasonalityTypes],
+                List[str],
                 Dict[SeasonalityTypes, Union[bool, str]],
             ]
-        ] = EMPTY_LIST,
+        ] = None,
+        country_holidays: Optional[str] = None,
+        holidays_list: Optional[Union[List[str], Dict[str, List[str]]]] = None,
+        holiday_multiplier: Optional[float] = None,
     ) -> None:
         """
         Initializartion of Prophet
@@ -273,6 +364,9 @@ class ProphetDetectorModel(DetectorModel):
             If argument  SeasonalityTypes, List[SeasonalityTypes], than mentioned seasonilities will be used in Prophet. If argument Dict[SeasonalityTypes, bool] - each seasonality can be setted directly (True - means used it, False - not to use, 'auto' according to Prophet.).
             SeasonalityTypes enum values: DAY, WEEK , YEAR, WEEKEND
             Daily, Weekly, Yearly seasonlities used  as "auto" by default.
+        country_holidays: Optional[str]: Country for which holidays should be added to the model.
+        holidays_list:  Optional[Union[List[str], Dict[str, List[str]]]] : List of holiday dates to be added to the model. like ["2022-01-01","2022-03-31"], or dict of list if we have diffreent holidays patterns for example  {"ds":["2022-01-01","2022-03-31"], "holidays":["playoff","superbowl"]}
+        holiday_multiplier: Optional[float], multiplier for holidays anomaly scores.
         """
 
         if serialized_model:
@@ -305,6 +399,10 @@ class ProphetDetectorModel(DetectorModel):
         if seasonalities is None:
             seasonalities = []
         self.seasonalities = seasonalities_to_dict(seasonalities)
+        self.country_holidays: Optional[str] = country_holidays
+        self.holidays_list = holidays_list
+        self.holiday_multiplier = holiday_multiplier
+        self.holidays: Optional[pd.DataFrame] = None  # type: ignore
 
     def serialize(self) -> bytes:
         """Serialize the model into a json.
@@ -386,6 +484,26 @@ class ProphetDetectorModel(DetectorModel):
         additional_seasonalities = []
         if self.seasonalities_to_fit[SeasonalityTypes.WEEKEND]:
             additional_seasonalities = prophet_weekend_masks(data_df)
+        if self.holidays_list is not None and len(self.holidays_list) > 0:
+            if isinstance(self.holidays_list, List):
+                if isinstance(self.holidays_list[0], str):
+                    self.holidays_list = {
+                        HOLIDAY_DATES_COLUMN_NAME: self.holidays_list,
+                        HOLIDAY_NAMES_COLUMN_NAME: ["holiday"]
+                        * len(self.holidays_list),
+                    }
+                else:
+                    raise ValueError(
+                        "holidays_list should be a list of str or dict of list of str"
+                    )
+            if not isinstance(self.holidays_list, Dict):
+                raise ValueError(
+                    "holidays_list should be a list of str or dict of list of str"
+                )
+            # we use default lower and upper bound for holidays
+
+            self.holidays = pd.DataFrame(self.holidays_list)
+
         # No incremental training. Create a model and train from scratch
         model = Prophet(
             interval_width=self.scoring_confidence_interval,
@@ -393,10 +511,16 @@ class ProphetDetectorModel(DetectorModel):
             daily_seasonality=self.seasonalities_to_fit[SeasonalityTypes.DAY],
             yearly_seasonality=self.seasonalities_to_fit[SeasonalityTypes.YEAR],
             weekly_seasonality=self.seasonalities_to_fit[SeasonalityTypes.WEEK],
+            holidays=self.holidays,
         )
+        if self.country_holidays:
+            model.add_country_holidays(self.country_holidays)
         for seasonality in additional_seasonalities:
             model.add_seasonality(**seasonality)
-        self.model = model.fit(data_df)
+        with ExitStack() as stack:
+            if not os.environ.get(NOT_SUPPRESS_PROPHET_FIT_LOGS_VAR_NAME, False):
+                stack.enter_context(SilentStdoutStderr())
+            self.model = model.fit(data_df)
 
     def predict(
         self,
@@ -450,17 +574,42 @@ class ProphetDetectorModel(DetectorModel):
                     time=data.time, value=predict_df[PROPHET_YHAT_LOWER_COLUMN]
                 ),
             )
+        anomaly_value: Union[pd.Series, pd.DataFrame] = SCORE_FUNC_DICT[
+            self.score_func.value
+        ](
+            data=data,
+            predict_df=predict_df,
+            ci_threshold=model.interval_width,
+            use_legacy_z_score=self.use_legacy_z_score,
+        )
+
+        scores: TimeSeriesData = TimeSeriesData(time=data.time, value=anomaly_value)
+
+        # If holidays are provided, we multiply the anomaly score by the holiday multiplier
+        if (
+            self.holiday_multiplier is not None
+            and round(self.holiday_multiplier, 10) != 1.0
+        ):
+            # convert the list of custom holidays into a df
+            custom_holidays = (
+                pd.DataFrame(self.holidays_list) if self.holidays_list else None
+            )
+            holidays_df: Optional[pd.Series] = get_holiday_dates(
+                custom_holidays, self.country_holidays, data.time
+            )
+            if holidays_df is not None:
+                scores_ts = pd.Series(list(scores.value), index=data.time)
+                scores_ts.loc[
+                    scores_ts.index.floor("d").isin(holidays_df)
+                ] *= self.holiday_multiplier
+                scores = TimeSeriesData(
+                    time=pd.Series(scores_ts.index), value=scores_ts
+                )
+            else:
+                logging.warning("Holiday multiplier is set but no holidays are found.")
 
         response = AnomalyResponse(
-            scores=TimeSeriesData(
-                time=data.time,
-                value=SCORE_FUNC_DICT[self.score_func.value](
-                    data=data,
-                    predict_df=predict_df,
-                    ci_threshold=model.interval_width,
-                    use_legacy_z_score=self.use_legacy_z_score,
-                ),
-            ),
+            scores=scores,
             confidence_band=confidence_band,
             predicted_ts=predicted_ts,
             anomaly_magnitude_ts=zeros_ts,
@@ -486,7 +635,10 @@ class ProphetDetectorModel(DetectorModel):
         model = Prophet(
             interval_width=outlier_ci_threshold, uncertainty_samples=uncertainty_samples
         )
-        model_pass1 = model.fit(ts_df)
+        with ExitStack() as stack:
+            if not os.environ.get(NOT_SUPPRESS_PROPHET_FIT_LOGS_VAR_NAME, False):
+                stack.enter_context(SilentStdoutStderr())
+            model_pass1 = model.fit(ts_df)
 
         forecast = predict(model_pass1, ts_dates_df, vectorize)
 
@@ -551,7 +703,10 @@ class ProphetTrendDetectorModel(DetectorModel):
             changepoint_prior_scale=self.changepoint_prior_scale,
         )
         ts_p = pd.DataFrame({"ds": data.time.values, "y": data.value.values})
-        model = model.fit(ts_p)
+        with ExitStack() as stack:
+            if not os.environ.get(NOT_SUPPRESS_PROPHET_FIT_LOGS_VAR_NAME, False):
+                stack.enter_context(SilentStdoutStderr())
+            model = model.fit(ts_p)
         self.model = model
 
         output_ts = self._zeros_ts(ts_p)

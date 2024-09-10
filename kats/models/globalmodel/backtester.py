@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import collections
 import logging
 import time
@@ -57,6 +59,7 @@ class GMBackTester:
         # pyre-fixme[2]: Parameter annotation cannot contain `Any`.
         data: Union[List[TimeSeriesData], Dict[Any, TimeSeriesData]],
         gmparam: GMParam,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         backtest_timestamp: List[Union[str, pd.Timestamp]],
         splits: int = 3,
         overlap: bool = True,
@@ -95,6 +98,7 @@ class GMBackTester:
             msg = "backtest_timestamp should be a non-empty list of timestamp strings."
             logging.error(msg)
             raise ValueError(msg)
+        # pyre-fixme[4]: Attribute must be annotated.
         self.backtest_timestamp = backtest_timestamp
 
         if not isinstance(splits, int) or splits < 1:
@@ -121,6 +125,7 @@ class GMBackTester:
             msg = f"earliest_timestamp should either be a str or a pd.Timestamp but receives {type(earliest_timestamp)}."
             logging.error(msg)
             raise ValueError(msg)
+        # pyre-fixme[4]: Attribute must be annotated.
         self.earliest_timestamp = earliest_timestamp
         pdata = self._preprocess(data)
         # pyre-fixme[4]: Attribute must be annotated.

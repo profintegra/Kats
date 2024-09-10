@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 # This file defines tests for the Backtester classes
 
 import statistics
@@ -11,6 +13,7 @@ import unittest.mock as mock
 from typing import Any, cast, Dict, List, Tuple
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.data.utils import load_air_passengers
@@ -52,7 +55,7 @@ CV_NUM_FOLDS = 3  # Number of folds for cross validation
 
 
 def compute_errors(
-    train: np.ndarray, pred: np.ndarray, truth: np.ndarray
+    train: npt.NDArray, pred: npt.NDArray, truth: npt.NDArray
 ) -> Dict[str, float]:
     true_errors = {}
     for error in ALL_ERRORS:
@@ -63,9 +66,9 @@ def compute_errors(
 
 
 def compute_errors_list(
-    train: np.ndarray,
-    pred: np.ndarray,
-    truth: np.ndarray,
+    train: npt.NDArray,
+    pred: npt.NDArray,
+    truth: npt.NDArray,
     true_errors: Dict[str, List[float]],
 ) -> None:
     for error in ALL_ERRORS:
@@ -84,8 +87,6 @@ class SimpleBackTesterTest(unittest.TestCase):
         DATA = load_air_passengers(return_ts=False)
         cls.TSData = load_air_passengers()
         cls.train_data = cls.TSData[: len(cls.TSData) - TIMESTEPS]
-        # pyre-fixme[6]: For 1st param expected `Optional[DataFrame]` but got
-        #  `Union[DataFrame, Series]`.
         cls.test_data = TimeSeriesData(DATA.tail(TIMESTEPS))
 
     def prophet_predict_side_effect(self, *args: Any, **kwargs: Any) -> pd.DataFrame:
@@ -644,8 +645,6 @@ class FixedWindowBackTesterTest(unittest.TestCase):
 
         # Creating folds
         cls.train_data = cls.TSData[: len(cls.TSData) - (TIMESTEPS * 2)]
-        # pyre-fixme[6]: For 1st param expected `Optional[DataFrame]` but got
-        #  `Union[DataFrame, Series]`.
         cls.test_data = TimeSeriesData(DATA.tail(TIMESTEPS))
 
     def prophet_predict_side_effect(self, *args: Any, **kwargs: Any) -> pd.DataFrame:
@@ -729,7 +728,7 @@ class FixedWindowBackTesterTest(unittest.TestCase):
             (50, 50, 110, "Invalid window percentage"),
         ]
 
-        for (train_p, test_p, window_p, expected_msg) in forbidden_init_params:
+        for train_p, test_p, window_p, expected_msg in forbidden_init_params:
 
             # Create backtester with forbidden initialization parameters
             with self.assertRaises(ValueError) as e:
@@ -1050,7 +1049,7 @@ class CrossValidationTest(unittest.TestCase):
             (50, 50, -10, "Invalid number of folds"),
         ]
 
-        for (train_p, test_p, num_folds, expected_msg) in forbidden_init_params:
+        for train_p, test_p, num_folds, expected_msg in forbidden_init_params:
 
             # Create cross validation object with forbidden initialization parameters
             with self.assertRaises(ValueError) as e:

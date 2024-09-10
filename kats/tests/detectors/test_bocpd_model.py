@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from operator import attrgetter
 from unittest import TestCase
 
@@ -101,7 +103,6 @@ class BocpdDetectorModelTest(TestCase):
             serialized_model=self.serialized_no_drift_model, slow_drift=True
         )
 
-    # pyre-ignore Undefined attribute [16]: Module parameterized.parameterized has no attribute expand.
     @parameterized.expand(
         [
             [95, 105],  # Interval 1
@@ -121,7 +122,6 @@ class BocpdDetectorModelTest(TestCase):
             np.max(anom.scores.value.values[from_interval:to_interval]) > threshold
         )
 
-    # pyre-fixme[16]: Module `parameterized` has no attribute `expand`.
     @parameterized.expand(
         [
             [
@@ -149,7 +149,6 @@ class BocpdDetectorModelTest(TestCase):
             attrgetter(attribute_actual)(self),
         )
 
-    # pyre-ignore Undefined attribute [16]: Module parameterized.parameterized has no attribute expand.
     @parameterized.expand(
         [
             [95, 105],  # Interval 1

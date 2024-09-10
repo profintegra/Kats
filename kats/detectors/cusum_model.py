@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """CUSUMDetectorModel is a wraper of CUSUMDetector to detect multiple change points
 
 Typical usage example:
@@ -56,12 +58,6 @@ from kats.utils.decomposition import SeasonalityHandler
 NORMAL_TOLERENCE = 1  # number of window
 CHANGEPOINT_RETENTION: int = 7 * 24 * 60 * 60  # in seconds
 MAX_CHANGEPOINT = 10
-SEASON_PERIOD_FREQ_MAP: Dict[str, int] = {
-    "daily": 1,
-    "weekly": 7,
-    "monthly": 30,
-    "yearly": 365,
-}
 
 _log: logging.Logger = logging.getLogger("cusum_model")
 
@@ -197,7 +193,7 @@ class CUSUMDetectorModel(DetectorModel):
         ] = CUSUMDefaultArgs.change_directions,
         score_func: Union[str, CusumScoreFunction] = DEFAULT_SCORE_FUNCTION,
         remove_seasonality: bool = CUSUMDefaultArgs.remove_seasonality,
-        season_period_freq: str = "daily",
+        season_period_freq: Union[str, int] = "daily",
         vectorized: Optional[bool] = None,
         adapted_pre_mean: Optional[bool] = None,
     ) -> None:
@@ -229,7 +225,7 @@ class CUSUMDetectorModel(DetectorModel):
             else:
                 self.remove_seasonality: bool = remove_seasonality
 
-            self.season_period_freq: str = previous_model.get(
+            self.season_period_freq: Union[str, int] = previous_model.get(
                 "season_period_freq", "daily"
             )
 
@@ -352,14 +348,17 @@ class CUSUMDetectorModel(DetectorModel):
             check_decrease = 0 if decrease else np.inf
 
         return (
+            # pyre-fixme[61]: `check_decrease` is undefined, or not always defined.
             self.pre_mean - check_decrease * self.pre_std
             <= cur_mean
+            # pyre-fixme[61]: `check_increase` is undefined, or not always defined.
             <= self.pre_mean + check_increase * self.pre_std
         )
 
     def _fit_vec_row(
         self,
         vec_data_row: TimeSeriesData,
+        # pyre-fixme[11]: Annotation `Timedelta` is not defined as a type.
         scan_window: Union[int, pd.Timedelta],
         changepoints: List[CUSUMChangePoint],  # len = 1 or 0
         time_adjust: pd.Timedelta,
@@ -786,7 +785,6 @@ class CUSUMDetectorModel(DetectorModel):
             ss_detect = VectorizedCUSUMDetectorModel(
                 scan_window=self.scan_window,
                 historical_window=self.historical_window,
-                # pyre-ignore
                 step_window=step_window.total_seconds(),
                 threshold=threshold,
                 delta_std_ratio=delta_std_ratio,
@@ -1280,9 +1278,11 @@ class VectorizedCUSUMDetectorModel(CUSUMDetectorModel):
             )
 
             cps = [
-                sorted(x, key=lambda x: x.start_time)[0]
-                if x and alert_set_on_mask[i]
-                else None
+                (
+                    sorted(x, key=lambda x: x.start_time)[0]
+                    if x and alert_set_on_mask[i]
+                    else None
+                )
                 for i, x in enumerate(changepoints)
             ]
 

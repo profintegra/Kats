@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 
 import unittest
 from typing import cast, Dict, Union
@@ -23,6 +25,7 @@ from kats.tests.models.test_models_dummy_data import (
     PEYTON_FCST_LINEAR_NAN,
     PEYTON_INPUT_NAN,
 )
+
 from parameterized.parameterized import parameterized
 
 TEST_DATA: Dict[

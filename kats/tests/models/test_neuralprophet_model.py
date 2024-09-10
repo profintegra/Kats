@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import builtins
 import sys
 import unittest
@@ -20,6 +22,7 @@ from kats.tests.models.test_models_dummy_data import (
     NONSEASONAL_FUTURE_DF,
     NONSEASONAL_INPUT,
 )
+
 from parameterized.parameterized import parameterized
 
 

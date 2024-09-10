@@ -3,9 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 from kats.compat import compat
 from sklearn.metrics import mean_squared_error as mse, mean_squared_log_error as msle
 
@@ -14,8 +17,8 @@ version: compat.Version = compat.Version("sklearn")
 
 
 def mean_squared_error(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
     sample_weight: Optional[np.ndarray] = None,
     multioutput: str = "uniform_average",
     squared: bool = True,
@@ -31,8 +34,8 @@ def mean_squared_error(
 
 
 def mean_squared_log_error(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
     sample_weight: Optional[np.ndarray] = None,
     multioutput: str = "uniform_average",
     squared: bool = True,

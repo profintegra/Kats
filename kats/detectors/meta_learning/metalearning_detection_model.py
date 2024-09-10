@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import ast
 import logging
 import math
@@ -86,7 +88,7 @@ def metadata_detect_preprocessor(
     return table
 
 
-class MetaDetectModelSelect(object):
+class MetaDetectModelSelect:
     """
     Meta-learner framework on detection model selection.
     This framework uses classification algorithms to recommend suitable detection models.

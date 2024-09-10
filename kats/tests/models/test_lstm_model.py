@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import unittest
 from typing import Dict
 from unittest import TestCase
@@ -99,7 +101,6 @@ TEST_DATA = {
 
 
 class LSTMModelTest(TestCase):
-    # pyre-fixme[16]: Module `parameterized.parameterized` has no attribute `expand`.
     @parameterized.expand(
         [
             [
@@ -215,10 +216,13 @@ class LSTMModelTest(TestCase):
             steps=steps_2,
             freq=freq,
         ).reset_index(drop=True)
+        # pyre-fixme[6]: For 1st argument expected `DataFrame` but got
+        #  `Optional[DataFrame]`.
         assert_frame_equal(res_1, truth_1)
+        # pyre-fixme[6]: For 1st argument expected `DataFrame` but got
+        #  `Optional[DataFrame]`.
         assert_frame_equal(res_2, truth_2)
 
-    # pyre-fixme[16]: Module `parameterized.parameterized` has no attribute `expand`.
     @parameterized.expand(
         [
             [

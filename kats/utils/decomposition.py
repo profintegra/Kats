@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import logging
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
 
@@ -17,6 +19,8 @@ from kats.consts import (
     ParameterError,
     TimeSeriesData,
 )
+
+# pyre-fixme[21]: Could not find name `STL` in `statsmodels.tsa.seasonal`.
 from statsmodels.tsa.seasonal import seasonal_decompose, STL
 
 # from numpy.typing import ArrayLike
@@ -43,6 +47,7 @@ class TimeSeriesDecomposition:
         method: `STL decompostion` or `seasonal_decompose`
     """
 
+    # pyre-fixme[11]: Annotation `Timedelta` is not defined as a type.
     freq: Optional[Union[str, pd.Timedelta]] = None
     results: Optional[Dict[str, TimeSeriesData]] = None
     decomposition: str
@@ -129,8 +134,6 @@ class TimeSeriesDecomposition:
         if any(original.isna()):
             original.interpolate(method="linear", limit_direction="both", inplace=True)
 
-        # pyre-ignore[7]: Expected `DataFrame` but got
-        #  `Union[pd.core.frame.DataFrame, pd.core.series.Series]`.
         return original
 
     def _get_period(self) -> Optional[int]:
@@ -183,6 +186,7 @@ class TimeSeriesDecomposition:
             data = np.log(original)
             post_transform = np.exp
 
+        # pyre-fixme[16]: Module `seasonal` has no attribute `STL`.
         result = STL(
             data,
             period=period,
@@ -278,7 +282,7 @@ class SeasonalityHandler:
     SeasonalityHandler is a class that do timeseries STL decomposition for detecors
     Attributes:
         data: TimeSeriesData that need to be decomposed
-        seasonal_period: str, default value is 'daily'. Other possible values: 'hourly', 'weekly', 'biweekly', 'monthly', 'yearly'
+        seasonal_period: str, default value is 'daily'. Other possible values: 'hourly', 'weekly', 'biweekly', 'monthly', 'yearly' or integer which represent amoutn of seconds
 
     >>> # Example usage:
     >>> from kats.utils.simulator import Simulator
@@ -289,10 +293,19 @@ class SeasonalityHandler:
     >>> sh.remove_seasonality()
     """
 
+    PERIOD_MAP: Dict[str, int] = {
+        "hourly": 1 * 60 * 60,
+        "daily": 24 * 60 * 60,
+        "weekly": 7 * 24 * 60 * 60,
+        "biweekly": 14 * 24 * 60 * 60,
+        "monthly": 30 * 24 * 60 * 60,
+        "yearly": 365 * 24 * 60 * 60,
+    }
+
     def __init__(
         self,
         data: TimeSeriesData,
-        seasonal_period: str = "daily",
+        seasonal_period: Union[str, int] = "daily",
         ignore_irregular_freq: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -303,19 +316,18 @@ class SeasonalityHandler:
 
         self.data = data
 
-        _map = {
-            "hourly": 1,
-            "daily": 24,
-            "weekly": 7 * 24,
-            "biweekly": 14 * 24,
-            "monthly": 30 * 24,
-            "yearly": 365 * 24,
-        }
-        if seasonal_period not in _map:
-            msg = "Invalid seasonal_period, possible values are 'hourly', 'daily', 'weekly', 'biweekly', 'monthly', and 'yearly'"
+        if isinstance(seasonal_period, str):
+            if seasonal_period not in SeasonalityHandler.PERIOD_MAP:
+                msg = "Invalid seasonal_period str value, possible values are integer or 'hourly', 'daily', 'weekly', 'biweekly', 'monthly', and 'yearly'"
+                logging.error(msg)
+                raise ParameterError(msg)
+            self.seasonal_period: int = SeasonalityHandler.PERIOD_MAP[seasonal_period]
+        elif type(seasonal_period) is int:
+            self.seasonal_period: int = seasonal_period
+        else:
+            msg = "Invalid seasonal_period type, possible values are integer or 'hourly', 'daily', 'weekly', 'biweekly', 'monthly', and 'yearly'"
             logging.error(msg)
             raise ParameterError(msg)
-        self.seasonal_period: int = _map[seasonal_period]
 
         self.low_pass_jump_factor: float = kwargs.get("lpj_factor", 0.15)
         self.trend_jump_factor: float = kwargs.get("tj_factor", 0.15)
@@ -331,6 +343,7 @@ class SeasonalityHandler:
                     self.data.time.diff().value_counts().sort_values(ascending=False)
                 )
                 if freq_counts.iloc[0] >= int(len(self.data)) * 0.5 - 1:
+                    # pyre-fixme[4]: Attribute must be annotated.
                     self.frequency = freq_counts.index[0]
                 else:
                     _log.debug(f"freq_counts: {freq_counts}")
@@ -359,7 +372,7 @@ class SeasonalityHandler:
             raise DataIrregularGranularityError(IRREGULAR_GRANULARITY_ERROR)
 
         self.period: int = min(
-            int(self.seasonal_period * 60 * 60 / self.frequency.total_seconds()),
+            int(self.seasonal_period / self.frequency.total_seconds()),
             len(self.data) // 2,
         )
 
@@ -420,6 +433,7 @@ class SeasonalityHandler:
                 trend_jump=max(int((self.period + 1) * self.trend_jump_factor), 1),
             )
             assert self.decomp is not None
+            # pyre-fixme[16]: `Optional` has no attribute `__setitem__`.
             self.decomp[str(i)] = decomposer.decomposer()
 
     def remove_seasonality(self) -> TimeSeriesData:

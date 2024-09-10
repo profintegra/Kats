@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 MetaDetectHptSelect is a meta learner that predict best hyper parameters of chosen detection algorithm given a time series features
 before predicting, user needs to train the model:
@@ -172,7 +174,6 @@ class MetaDetectHptSelect:
         # check: are all hyper parameters valid for the given algorithm
         for idx, hp in data_y.iterrows():
             try:
-                # pyre-fixme[6]
                 MetaDetectHptSelect._init_detection_model(detector_model, hp.to_dict())
             except Exception as e:
                 raise KatsDetectorHPTIllegalHyperParameter(

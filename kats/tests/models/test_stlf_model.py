@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import unittest
 from datetime import timedelta
 from unittest import TestCase
@@ -19,6 +21,7 @@ from kats.models import (
 )
 from kats.models.stlf import STLFModel, STLFParams
 from kats.utils.simulator import Simulator
+
 from parameterized.parameterized import parameterized
 
 

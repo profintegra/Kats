@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from typing import List
 from unittest import TestCase
 
@@ -10,6 +12,7 @@ import numpy as np
 import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.models.ml_ar import MLARModel, MLARParams
+
 from parameterized.parameterized import parameterized
 
 single_univariate_ts = [

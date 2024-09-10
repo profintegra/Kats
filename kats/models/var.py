@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """VAR forecasting Model
 
 VAR model is a multivariate extension of the univariate autoregressive (AR) model.
@@ -236,6 +238,7 @@ class VARModel(Model[VARParams]):
             raise ValueError("VARModel does not support the ax parameter.")
         dates = self.dates
         assert dates is not None
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `to_pydatetime`.
         fcst_dates = dates.to_pydatetime()
         logging.info("Generating chart for forecast result from VAR model.")
 

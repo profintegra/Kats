@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import sys
 import unittest
 import unittest.mock as mock
@@ -25,6 +27,7 @@ from kats.models.ensemble.ensemble import BaseEnsemble, BaseModelParams, Ensembl
 from kats.models.ensemble.kats_ensemble import KatsEnsemble
 from kats.models.ensemble.median_ensemble import MedianEnsembleModel
 from kats.models.ensemble.weighted_avg_ensemble import WeightedAvgEnsemble
+
 from parameterized.parameterized import parameterized
 
 np.random.seed(123321)

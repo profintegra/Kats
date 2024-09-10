@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """Base I/O code for time series data in Kats
 
 This is a base implementation to load datasets for test and evaluation/benchmarking
@@ -49,13 +51,11 @@ def load_data(file_name: str, reset_columns: bool = False) -> pd.DataFrame:
 
 
 @overload
-def load_air_passengers(return_ts: Literal[True]) -> TimeSeriesData:
-    ...
+def load_air_passengers(return_ts: Literal[True]) -> TimeSeriesData: ...
 
 
 @overload
-def load_air_passengers(return_ts: Literal[False] = ...) -> pd.DataFrame:
-    ...
+def load_air_passengers(return_ts: Literal[False] = ...) -> pd.DataFrame: ...
 
 
 def load_air_passengers(return_ts: bool = True) -> Union[pd.DataFrame, TimeSeriesData]:

@@ -3,9 +3,12 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import logging
 import warnings
 from typing import cast, Dict, Generator, Optional, Sequence, Union
+
 
 try:
     from typing import Protocol
@@ -13,6 +16,7 @@ except ImportError:  # pragma: no cover
     from typing_extensions import Protocol  # pragma: no cover
 
 import numpy as np
+import numpy.typing as npt
 
 with warnings.catch_warnings():
     # suppress patsy warning
@@ -21,6 +25,7 @@ with warnings.catch_warnings():
 
 # from numpy.typing import ArrayLike
 ArrayLike = Union[np.ndarray, Sequence[float]]
+
 
 # Type aliases
 #
@@ -45,13 +50,13 @@ class ArrayMetric(Protocol):
         y_true: ArrayLike,
         y_pred: ArrayLike,
         sample_weight: Optional[ArrayLike] = ...,
-    ) -> np.ndarray:
-        ...  # pragma: no cover
+    ) -> npt.NDArray: ...  # pragma: no cover
 
 
 class Metric(Protocol):
-    def __call__(self, y_true: ArrayLike, y_pred: ArrayLike) -> float:
-        ...  # pragma: no cover
+    def __call__(
+        self, y_true: ArrayLike, y_pred: ArrayLike
+    ) -> float: ...  # pragma: no cover
 
 
 class WeightedMetric(Protocol):
@@ -60,8 +65,7 @@ class WeightedMetric(Protocol):
         y_true: ArrayLike,
         y_pred: ArrayLike,
         sample_weight: Optional[ArrayLike] = ...,
-    ) -> float:
-        ...  # pragma: no cover
+    ) -> float: ...  # pragma: no cover
 
 
 class MultiOutputMetric(Protocol):
@@ -71,8 +75,7 @@ class MultiOutputMetric(Protocol):
         y_pred: ArrayLike,
         sample_weight: Optional[ArrayLike] = ...,
         multioutput: Union[str, ArrayLike] = ...,
-    ) -> float:
-        ...  # pragma: no cover
+    ) -> float: ...  # pragma: no cover
 
 
 class ThresholdMetric(Protocol):
@@ -81,8 +84,7 @@ class ThresholdMetric(Protocol):
         y_true: ArrayLike,
         y_pred: ArrayLike,
         threshold: float,
-    ) -> float:
-        ...  # pragma: no cover
+    ) -> float: ...  # pragma: no cover
 
 
 class MultiThresholdMetric(Protocol):
@@ -91,8 +93,7 @@ class MultiThresholdMetric(Protocol):
         y_true: ArrayLike,
         y_pred: ArrayLike,
         threshold: ArrayLike,
-    ) -> np.ndarray:
-        ...  # pragma: no cover
+    ) -> npt.NDArray: ...  # pragma: no cover
 
 
 KatsMetric = Union[
@@ -133,13 +134,13 @@ def _arrays(*args: Optional[ArrayLike]) -> Generator[np.ndarray, None, None]:
 
 
 def _safe_divide(
-    num: np.ndarray,
+    num: npt.NDArray,
     denom: Union[np.ndarray, float],
     negative_infinity: float = -1.0,
     positive_infinity: float = 1.0,
     indeterminate: float = 0.0,
     nan: float = np.nan,
-) -> np.ndarray:
+) -> npt.NDArray:
     """Safely divide one array by another or a float.
 
     Args:
@@ -181,8 +182,8 @@ def _safe_divide(
 
 
 def _err(
-    y_true: np.ndarray, y_pred: np.ndarray, sample_weight: Optional[np.ndarray] = None
-) -> np.ndarray:
+    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+) -> npt.NDArray:
     if sample_weight is None:
         return y_true - y_pred
     return _safe_divide(
@@ -192,7 +193,7 @@ def _err(
 
 def error(
     y_true: ArrayLike, y_pred: ArrayLike, sample_weight: Optional[ArrayLike] = None
-) -> np.ndarray:
+) -> npt.NDArray:
     """Compute the error.
 
     Args:
@@ -207,8 +208,8 @@ def error(
 
 
 def _abs_err(
-    y_true: np.ndarray, y_pred: np.ndarray, sample_weight: Optional[np.ndarray] = None
-) -> np.ndarray:
+    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+) -> npt.NDArray:
     err = np.abs(y_true - y_pred)
     if sample_weight is None:
         return err
@@ -219,7 +220,7 @@ def _abs_err(
 
 def absolute_error(
     y_true: ArrayLike, y_pred: ArrayLike, sample_weight: Optional[ArrayLike] = None
-) -> np.ndarray:
+) -> npt.NDArray:
     """Compute the absolute error.
 
     Args:
@@ -234,8 +235,8 @@ def absolute_error(
 
 
 def _pct_err(
-    y_true: np.ndarray, y_pred: np.ndarray, sample_weight: Optional[np.ndarray] = None
-) -> np.ndarray:
+    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+) -> npt.NDArray:
     err = y_true - y_pred
     if sample_weight is None:
         return _safe_divide(err, y_true)
@@ -246,7 +247,7 @@ def _pct_err(
 
 def percentage_error(
     y_true: ArrayLike, y_pred: ArrayLike, sample_weight: Optional[ArrayLike] = None
-) -> np.ndarray:
+) -> npt.NDArray:
     """Compute the percentage error.
 
     Args:
@@ -261,8 +262,8 @@ def percentage_error(
 
 
 def _abs_pct_err(
-    y_true: np.ndarray, y_pred: np.ndarray, sample_weight: Optional[np.ndarray] = None
-) -> np.ndarray:
+    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+) -> npt.NDArray:
     err = np.abs(y_true - y_pred)
     if sample_weight is None:
         return _safe_divide(err, y_true)
@@ -273,7 +274,7 @@ def _abs_pct_err(
 
 def absolute_percentage_error(
     y_true: ArrayLike, y_pred: ArrayLike, sample_weight: Optional[ArrayLike] = None
-) -> np.ndarray:
+) -> npt.NDArray:
     """Compute the absolute percentage error.
 
     Args:
@@ -668,7 +669,7 @@ def tracking_signal(y_true: ArrayLike, y_pred: ArrayLike) -> float:
 
 def mult_exceed(
     y_true: ArrayLike, y_pred: ArrayLike, threshold: ArrayLike
-) -> np.ndarray:
+) -> npt.NDArray:
     """Compute exceed rate for quantile estimates.
 
     For threshold t (0<t<=0.5), the exceed rate of t is defined as:
@@ -792,7 +793,7 @@ def mult_coverage(
     y_lower: ArrayLike,
     y_upper: ArrayLike,
     rolling_window: Union[None, int] = None,
-) -> np.ndarray:
+) -> npt.NDArray:
     """
     Compute the coverage rates (or roling mean of the coverage rates) of the confidence intervals based on the actual values
     Args:
@@ -846,7 +847,7 @@ def mult_interval_score(
     y_upper: ArrayLike,
     alpha: float = 0.2,
     rolling_window: Union[None, int] = None,
-) -> np.ndarray:
+) -> npt.NDArray:
     """
     Compute the interval scores  (or roling mean of the interval scores) of the confidence intervals based on the actual values
     Args:

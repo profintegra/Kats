@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import unittest
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
@@ -12,6 +14,7 @@ import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.data.utils import load_data
 from kats.models.var import VARModel, VARParams
+
 from parameterized.parameterized import parameterized
 
 

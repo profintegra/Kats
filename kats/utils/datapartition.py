@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 This file defines the data-partition classes for Kats.
 
@@ -21,6 +23,7 @@ import numpy as np
 import pandas as pd
 from kats.consts import TimeSeriesData
 
+# pyre-fixme[5]: Global expression must be annotated.
 Timestamp = Union[str, pd.Timestamp, datetime]
 DataPartition = Union[
     TimeSeriesData, List[TimeSeriesData], Dict[Union[str, int], TimeSeriesData]
@@ -65,7 +68,7 @@ class DataPartitionBase(ABC):
             elif isinstance(max_core, int) and max_core > 0 and max_core < total_cores:
                 self.max_core = max_core
             elif isinstance(max_core, int) and max_core > total_cores:
-                logging.warn(
+                logging.warning(
                     f"`max_core` is larger than maximum available cores ({total_cores}) and sets `max_core = {total_cores}`."
                 )
             else:
@@ -251,6 +254,7 @@ class SimpleTimestampDataPartition(DataPartitionBase):
 
     def __init__(
         self,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         train_end: Timestamp,
         test_start: Timestamp,
         train_start: Optional[Timestamp] = None,
@@ -266,6 +270,7 @@ class SimpleTimestampDataPartition(DataPartitionBase):
             train_start, train_end, test_start, test_end
         )
 
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         self.train_start: pd.Timestamp = train_start
         self.train_end: pd.Timestamp = train_end
         self.test_start: pd.Timestamp = test_start

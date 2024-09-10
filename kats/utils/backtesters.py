@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 This file defines the BackTester classes for Kats.
 
@@ -20,6 +22,7 @@ rolling windows.
 For more information, check out the Kats tutorial notebook on backtesting!
 """
 
+import copy
 import logging
 import multiprocessing as mp
 from abc import ABC, abstractmethod
@@ -74,8 +77,9 @@ class BacktesterResult:
 
 
 class Forecaster(Protocol):
-    def __call__(self, train: DataPartition, test: DataPartition) -> pd.DataFrame:
-        ...  # pragma: no cover
+    def __call__(
+        self, train: DataPartition, test: DataPartition
+    ) -> pd.DataFrame: ...  # pragma: no cover
 
     """
     Function of fitting a forecasting model with `train` and evaluate the fitted model on `test`.
@@ -84,8 +88,9 @@ class Forecaster(Protocol):
 
 
 class Scorer(Protocol):
-    def __call__(self, result: pd.DataFrame) -> Dict[str, float]:
-        ...  # pragma: no cover
+    def __call__(
+        self, result: pd.DataFrame
+    ) -> Dict[str, float]: ...  # pragma: no cover
 
     """Function for calculating evaluation metrics based on `result`.
     """
@@ -120,6 +125,7 @@ def _get_scorer(
             except Exception as e:
                 msg = f"Unsupported error function {error} with error message {e}."
                 _log_error(msg)
+
         # define scorer function
         # pyre-fixme Incompatible return type [7]: Expected `Optional[typing.Callable[[DataFrame], Dict[str, float]]]` but got `Union[Metric, MultiOutputMetric, WeightedMetric]`.
         def calc_error(result: pd.DataFrame) -> Dict[str, float]:
@@ -579,9 +585,10 @@ class BackTesterParent(ABC):
             raise ValueError("Not enough testing data")
 
         logging.info("Training model")
-        train_model = self.model_class(data=training_data, params=self.params)
+        train_model = self.model_class(
+            data=copy.deepcopy(training_data), params=self.params
+        )
         train_model.fit()
-
         logging.info("Making forecast prediction")
         fcst = train_model.predict(
             steps=testing_data.value.size + self.offset, freq=self.freq
@@ -608,16 +615,23 @@ class BackTesterParent(ABC):
                 self._create_model(train_split, test_split)
         else:
             pool = mp.Pool(processes=num_splits)
-            futures = [
-                pool.apply_async(self._create_model, args=(train_split, test_split))
-                for train_split, test_split in zip(training_splits, testing_splits)
-            ]
             self.results = results = []
-            for fut in futures:
-                result = fut.get()
-                assert result is not None
-                results.append(result)
-            pool.close()
+            try:
+                futures = [
+                    pool.apply_async(self._create_model, args=(train_split, test_split))
+                    for train_split, test_split in zip(training_splits, testing_splits)
+                ]
+                for fut in futures:
+                    result = fut.get()
+                    assert result is not None
+                    results.append(result)
+            except Exception as e:
+                logging.exception("Error during parallel model evaluation")
+                logging.exception(e)
+                raise e
+            finally:
+                pool.close()
+                pool.join()
 
     def run_backtest(self) -> None:
         """Executes backtest."""

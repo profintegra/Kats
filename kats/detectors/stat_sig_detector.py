@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import json
 import logging
 from datetime import datetime
@@ -805,6 +807,7 @@ class StatSigDetectorModel(DetectorModel):
             ),
         )
 
+    # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
     def _update_response(self, date: pd.Timestamp) -> None:
         """
         Updates the current response with data from date.
@@ -899,6 +902,8 @@ class StatSigDetectorModel(DetectorModel):
         data_history = self.data_history
         assert data_history is not None
         self.data_history = TimeSeriesData(
+            # pyre-fixme[6]: For 1st argument expected `Union[None, DatetimeIndex,
+            #  Series]` but got `Union[DataFrame, Series]`.
             time=pd.concat([data_history.time, data.time], copy=False),
             value=pd.concat([data_history.value, data.value], copy=False),
         )
@@ -917,7 +922,6 @@ class StatSigDetectorModel(DetectorModel):
 
 
 class MultiStatSigDetectorModel(StatSigDetectorModel):
-
     """
     MultiStatSigDetectorModel is a multivariate version of the StatSigDetector.  It applies a univariate
     t-test to each of the components of the multivariate time series to see if the means between the control

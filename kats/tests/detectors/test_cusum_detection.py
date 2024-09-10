@@ -3,11 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from operator import attrgetter
 from typing import List, Optional
 from unittest import TestCase
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.detectors.cusum_detection import (
@@ -16,6 +19,7 @@ from kats.detectors.cusum_detection import (
     MultiCUSUMDetector,
     VectorizedCUSUMDetector,
 )
+
 from parameterized.parameterized import parameterized
 from scipy.stats import chi2  # @manual
 from sklearn.datasets import make_spd_matrix
@@ -95,7 +99,7 @@ class CUSUMDetectorTest(TestCase):
                 self.periodicity * self.total_cycles - 1,
             ],
             magnitude_quantile=1,
-            change_directions=["increase", "decrease"],
+            change_directions="both",
             delta_std_ratio=0,
         )
         self.season_metadata = self.season_inc_trend_change_points[0]
@@ -245,7 +249,7 @@ class CUSUMDetectorTest(TestCase):
         total_cycles: int,
         noise_std: float = 1.0,
         harmonics: Optional[float] = None,
-    ) -> np.ndarray:
+    ) -> npt.NDArray:
         duration = periodicity * total_cycles
         assert duration == int(duration)
         duration = int(duration)
@@ -542,7 +546,7 @@ class VectorizedCUSUMDetectorTest(TestCase):
         ).detector()
         self.dec_change_points_int_window = CUSUMDetector(
             TimeSeriesData(df[["decrease", "time"]])
-        ).detector(change_directions=["decrease"], interest_window=(35, 55))
+        ).detector(change_directions="decrease", interest_window=(35, 55))
 
         timeseries = TimeSeriesData(df)
         change_points_vectorized_ = VectorizedCUSUMDetector(timeseries).detector_()

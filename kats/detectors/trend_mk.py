@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from __future__ import annotations
 
 import logging
@@ -11,6 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 try:
@@ -67,6 +70,7 @@ class MKChangePoint(TimeSeriesChangePoint):
 
     def __init__(
         self,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         start_time: pd.Timestamp,
         end_time: pd.Timestamp,
         confidence: float,
@@ -245,7 +249,7 @@ class MKDetector(Detector):
 
         return x, c
 
-    def _drop_missing_values(self, x: np.ndarray) -> Tuple[np.ndarray, int]:
+    def _drop_missing_values(self, x: npt.NDArray) -> Tuple[np.ndarray, int]:
         """Drop the missing values in x."""
 
         if x.ndim == 1:  # univariate case with 1-dim array/ shape(n,)
@@ -439,7 +443,6 @@ class MKDetector(Detector):
             ts_smoothed = self._smoothing(ts_deseas)  # smoothing
             # append MK statistics to MK_statistics dataframe
             MK_statistics = MK_statistics.append(
-                # pyre-ignore[6]: Expected `Union[Dict[Union[int, str], typing.Any], L...
                 self.runDetector(ts=ts_smoothed),
                 ignore_index=True,
             )
@@ -456,7 +459,6 @@ class MKDetector(Detector):
                 ts_tmp = ts_smoothed.loc[:t, :]
                 # append MK statistics to MK_statistics dataframe
                 MK_statistics = MK_statistics.append(
-                    # pyre-ignore[6]: Expected `Union[Dict[Union[int, str], typing.Any...
                     self.runDetector(ts=ts_tmp),
                     ignore_index=True,
                 )

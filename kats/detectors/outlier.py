@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 Module with generic outlier detection models. Supports a univariate algorithm that
 treates each metric separately to identify outliers and a multivariate detection
@@ -20,6 +22,7 @@ from typing import Any, cast, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import Params, TimeSeriesData, TimeSeriesIterator
 from kats.detectors.detector import Detector
@@ -59,7 +62,9 @@ class OutlierDetector(Detector):
         self.iqr_mult = iqr_mult
 
     def __clean_ts__(
-        self, original: Union[pd.Series, pd.DataFrame]
+        self,
+        original: Union[pd.Series, pd.DataFrame],
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
     ) -> Tuple[List[int], List[float], List[pd.Timestamp]]:
         """
         Performs detection for a single metric. First decomposes the time series
@@ -184,7 +189,6 @@ class MultivariateAnomalyDetector(Detector):
         params.validate_params()
         self.params = params
 
-        # pyre-fixme
         time_diff = data.time.sort_values().diff().dropna()
         if len(time_diff.unique()) == 1:  # check constant frequenccy
             freq = time_diff.unique()[0].astype("int")
@@ -218,7 +222,7 @@ class MultivariateAnomalyDetector(Detector):
         )
         return df_clean
 
-    def _is_pos_def(self, mat: np.ndarray) -> bool:
+    def _is_pos_def(self, mat: npt.NDArray) -> bool:
         """
         Check if matrix is positive definite.
 

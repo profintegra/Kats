@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 
 """
 CUSUM stands for cumulative sum, it is a changepoint detection algorithm.
@@ -45,6 +47,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import TimeSeriesChangePoint, TimeSeriesData
 from kats.detectors.detector import Detector
@@ -156,6 +159,7 @@ class CUSUMChangePoint(TimeSeriesChangePoint):
 
     def __init__(
         self,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         start_time: pd.Timestamp,
         end_time: pd.Timestamp,
         confidence: float,
@@ -335,7 +339,7 @@ class CUSUMDetector(Detector):
             raise ValueError(msg)
 
     def _get_change_point(
-        self, ts: np.ndarray, max_iter: int, start_point: int, change_direction: str
+        self, ts: npt.NDArray, max_iter: int, start_point: int, change_direction: str
     ) -> CUSUMChangePointVal:
         """
         Find change point in the timeseries.
@@ -417,7 +421,7 @@ class CUSUMDetector(Detector):
 
     def _get_llr(
         self,
-        ts: np.ndarray,
+        ts: npt.NDArray,
         mu0: float,
         mu1: float,
         changepoint: int,
@@ -444,7 +448,7 @@ class CUSUMDetector(Detector):
         return llr
 
     def _log_llr(
-        self, x: np.ndarray, mu0: float, sigma0: float, mu1: float, sigma1: float
+        self, x: npt.NDArray, mu0: float, sigma0: float, mu1: float, sigma1: float
     ) -> float:
         """Helper function to calculate log likelihood ratio.
 
@@ -467,7 +471,7 @@ class CUSUMDetector(Detector):
             + 0.5 * (((x - mu1) / sigma1) ** 2 - ((x - mu0) / sigma0) ** 2)
         )
 
-    def _magnitude_compare(self, ts: np.ndarray) -> float:
+    def _magnitude_compare(self, ts: npt.NDArray) -> float:
         """
         Compare daily magnitude to avoid daily seasonality false positives.
         """
@@ -500,7 +504,7 @@ class CUSUMDetector(Detector):
 
         return comparable_mag / days
 
-    def _get_time_series_magnitude(self, ts: np.ndarray) -> float:
+    def _get_time_series_magnitude(self, ts: npt.NDArray) -> float:
         """
         Calculate the magnitude of a time series.
         """
@@ -525,7 +529,8 @@ class CUSUMDetector(Detector):
                 None means the middle of the time series.
             change_directions: Optional; list<str>; a list contain either or
                 both 'increase' and 'decrease' to specify what type of change
-                want to detect.
+                want to detect, to point both directions can be also setted up
+                as empty list ([]), None or ["both"]
             interest_window: Optional; list<int, int>, a list containing the
                 start and end of interest windows where we will look for change
                 points. Note that llr will still be calculated using all data
@@ -572,8 +577,15 @@ class CUSUMDetector(Detector):
         ts = self.data.value.to_numpy()
         ts = ts.astype("float64")
         changes_meta = {}
+        if type(change_directions) is str:
+            change_directions = [change_directions]
 
-        if change_directions is None:
+        if (
+            change_directions is None
+            or change_directions == [""]
+            or change_directions == ["both"]
+            or change_directions == []
+        ):
             change_directions = ["increase", "decrease"]
 
         for change_direction in change_directions:
@@ -797,7 +809,7 @@ class MultiCUSUMDetector(CUSUMDetector):
     #  inconsistently.
     def _get_llr(
         self,
-        ts: np.ndarray,
+        ts: npt.NDArray,
         mu0: float,
         mu1: float,
         changepoint: int,
@@ -827,7 +839,7 @@ class MultiCUSUMDetector(CUSUMDetector):
 
     def _log_llr_multi(
         self,
-        x: np.ndarray,
+        x: npt.NDArray,
         mu0: Union[float, np.ndarray],
         sigma0: Union[float, np.ndarray],
         mu1: Union[float, np.ndarray],
@@ -851,7 +863,7 @@ class MultiCUSUMDetector(CUSUMDetector):
 
     def _get_change_point(
         self,
-        ts: np.ndarray,
+        ts: npt.NDArray,
         max_iter: int,
         start_point: int,
         change_direction: str = "increase",
@@ -1024,7 +1036,16 @@ class VectorizedCUSUMDetector(CUSUMDetector):
             ts_multi = ts_multi[:, np.newaxis]
 
         changes_meta_multi = {}
-        if change_directions is None:
+
+        if type(change_directions) is str:
+            change_directions = [change_directions]
+
+        if (
+            change_directions is None
+            or change_directions == [""]
+            or change_directions == ["both"]
+            or change_directions == []
+        ):
             change_directions = ["increase", "decrease"]
 
         for change_direction in change_directions:
@@ -1204,10 +1225,12 @@ class VectorizedCUSUMDetector(CUSUMDetector):
                 if not list(change_meta_["changepoint"]):
                     continue
                 change_meta = {
-                    k: change_meta_[k][col_idx]
-                    if isinstance(change_meta_[k], np.ndarray)
-                    or isinstance(change_meta_[k], list)
-                    else change_meta_[k]
+                    k: (
+                        change_meta_[k][col_idx]
+                        if isinstance(change_meta_[k], np.ndarray)
+                        or isinstance(change_meta_[k], list)
+                        else change_meta_[k]
+                    )
                     for k in change_meta_
                 }
                 change_meta["llr"] = llr = self._get_llr(
@@ -1271,7 +1294,7 @@ class VectorizedCUSUMDetector(CUSUMDetector):
 
     def _get_change_point_multiple_ts(
         self,
-        ts: np.ndarray,
+        ts: npt.NDArray,
         max_iter: int,
         change_direction: str,
         start_point: Optional[int] = None,

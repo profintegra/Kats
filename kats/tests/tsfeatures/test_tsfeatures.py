@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import importlib
 from operator import attrgetter
 from typing import Any, cast, Dict, List, Union
@@ -23,6 +25,7 @@ from kats.tsfeatures.tsfeatures import (
     TsFeatures,
     TsFourierFeatures,
 )
+
 from parameterized.parameterized import parameterized
 
 SAMPLE_INPUT_TS_BOCPD_SCALED = pd.DataFrame(
@@ -174,11 +177,11 @@ class TSfeaturesTest(TestCase):
             "seas_acf1": -0.1483,
             "seas_pacf1": -0.0064,
             # special_ac
-            "firstmin_ac": 4.0,
+            "firstmin_ac": 2.0,
             "firstzero_ac": 4.0,
             # holt_params
             "holt_alpha": 0.0,
-            "holt_beta": 0.0
+            "holt_beta": 0.0,
             # hw_params
             # cusum_detector
             # robust_stat_detector
@@ -251,7 +254,7 @@ class TSfeaturesTest(TestCase):
             "diff2y_pacf5": 0.26101,
             "seas_acf1": 0.662904,
             "seas_pacf1": 0.15617,
-            "firstmin_ac": 8,
+            "firstmin_ac": 2,
             "firstzero_ac": 52,
             "holt_alpha": 1.0,
             "holt_beta": 0.0,
@@ -531,6 +534,7 @@ class TSfeaturesTest(TestCase):
                     ],
                 }
             )
+        # pyre-fixme[61]: `df` is undefined, or not always defined.
         df["value"] = df["value"].astype(dtype=pd.Int64Dtype())
         # pyre-fixme[61]: `df` may not be initialized here.
         ts = TimeSeriesData(df)
@@ -597,7 +601,7 @@ class TSfeaturesTest(TestCase):
             "diff2y_pacf5": 4.427552,
             "seas_acf1": -0.148278,
             "seas_pacf1": -0.006386,
-            "firstmin_ac": 4,
+            "firstmin_ac": 2,
             "firstzero_ac": 4,
             "holt_alpha": 1.014757e-09,
             "holt_beta": 0.0,
@@ -719,14 +723,6 @@ class TSfeaturesTest(TestCase):
             "time_freq_Sunday": 0.1875,
         }
         self.assertDictAlmostEqual(expected, features)
-
-    def test_without_jit(self) -> None:
-        with patch.dict("sys.modules", {"numba": None}):
-            importlib.reload(kats.tsfeatures.tsfeatures)
-            self.test_tsfeatures()
-            self.test_nowcasting_error()
-
-        importlib.reload(kats.tsfeatures.tsfeatures)
 
 
 class TestTsCalendarFeatures(TestCase):

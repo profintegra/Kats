@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 
 import logging
 import operator
@@ -14,6 +16,7 @@ from multiprocessing.dummy import Pool
 from typing import cast, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from kats.consts import Params, TimeSeriesData
@@ -192,8 +195,7 @@ class STDGlobalModel:
 
     def _predict_seasonality(
         self, steps: int, tsd_model: Union[ProphetModel, np.ndarray]
-    ) -> np.ndarray:
-
+    ) -> npt.NDArray:
         """Predict the future seasonality.
 
         Args:
@@ -231,7 +233,7 @@ class STDGlobalModel:
         return (tag, new_ts, new_seasonal)
 
     def _reseasonal(
-        self, tag: Union[int, str], fcst: pd.DataFrame, seasonal_fcst: np.ndarray
+        self, tag: Union[int, str], fcst: pd.DataFrame, seasonal_fcst: npt.NDArray
     ) -> Tuple[Union[str, int], pd.DataFrame]:
         cols = [c for c in fcst.columns if c != "time"]
         m = len(cols)

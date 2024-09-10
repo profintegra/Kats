@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 Conducts an AB test across two concurrent time series. This would be useful
 when an experiment is ran between two versions that are logged over time, and there is an
@@ -46,11 +48,13 @@ from enum import Enum, unique
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import IntervalAnomaly, TimeSeriesData
 from kats.detectors.detector import DetectorModel
 from kats.detectors.detector_consts import AnomalyResponse, ConfidenceBand
 from matplotlib import pyplot as plt
+
 from numpy.linalg import matrix_power
 from scipy.linalg import toeplitz
 from scipy.stats import beta, binom, mvn, norm
@@ -298,7 +302,11 @@ class ABInterval(IntervalAnomaly):
     """
 
     def __init__(
-        self, interval_type: ABIntervalType, start: pd.Timestamp, end: pd.Timestamp
+        self,
+        interval_type: ABIntervalType,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
+        start: pd.Timestamp,
+        end: pd.Timestamp,
     ) -> None:
         super().__init__(start=start, end=end)
         self.interval_type: ABIntervalType = interval_type
@@ -347,7 +355,7 @@ class ABInterval(IntervalAnomaly):
         return _repr
 
 
-def arma_p_q(ar: List[float], ma: List[float], n: int) -> np.ndarray:
+def arma_p_q(ar: List[float], ma: List[float], n: int) -> npt.NDArray:
     """Returns the autocorrelation matrix of an ARMA(p, q) Process."""
     # (1 - \phi_1 * L - ... - \phi_p * L^p) * y_t =
     #       (1 + \theta_1 * L + ... + \theta_q * L^q) * e_t
@@ -356,7 +364,7 @@ def arma_p_q(ar: List[float], ma: List[float], n: int) -> np.ndarray:
     )
 
 
-def ar_1(rho: float, n: int) -> np.ndarray:
+def ar_1(rho: float, n: int) -> npt.NDArray:
     """Returns the autocorrelation matrix of an AR(1) Process."""
     return arma_p_q(ar=[rho], ma=[], n=n)
 
@@ -894,8 +902,8 @@ class IntervalDetectorModel(DetectorModel, ABC):
 
     @staticmethod
     def _mvn_mvnun(
-        lower: np.ndarray,
-        upper: np.ndarray,
+        lower: npt.NDArray,
+        upper: npt.NDArray,
         mean: Optional[np.ndarray] = None,
         cov: Union[int, np.ndarray] = 1,
         allow_singular: bool = False,
@@ -937,13 +945,13 @@ class IntervalDetectorModel(DetectorModel, ABC):
         )[0]
 
     @staticmethod
-    def _w_independent(m: int, p: float) -> np.ndarray:
+    def _w_independent(m: int, p: float) -> npt.NDArray:
         return np.power(p, np.arange(m + 1)) * np.array([(1 - p)] * m + [1])
 
     @staticmethod
     def _w_one_tailed(
-        m: int, p: float, test_type: TestType, cov: np.ndarray
-    ) -> np.ndarray:
+        m: int, p: float, test_type: TestType, cov: npt.NDArray
+    ) -> npt.NDArray:
         z_crit = norm().ppf(1.0 - p)
         if test_type == TestType.ONE_SIDED_UPPER:
             fail_to_reject_lower = np.array([z_crit] * (m - 1) + [-np.inf])
@@ -973,7 +981,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
         return np.array(res)
 
     @staticmethod
-    def _w_two_tailed(m: int, p: float, cov: np.ndarray) -> np.ndarray:
+    def _w_two_tailed(m: int, p: float, cov: npt.NDArray) -> npt.NDArray:
         _m_warn = 8
         if m > _m_warn:
             logging.warning(
@@ -1024,7 +1032,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
     @staticmethod
     def _w(
         m: int, p: float, test_type: TestType, cov: Optional[np.ndarray] = None
-    ) -> np.ndarray:
+    ) -> npt.NDArray:
         if cov is None:
             return IntervalDetectorModel._w_independent(m=m, p=p)
         elif TestType(test_type.value) == TestType.TWO_SIDED:
@@ -1070,14 +1078,14 @@ class IntervalDetectorModel(DetectorModel, ABC):
             if m > n:
                 raise ValueError(f"m must be <= n. Found n={n} and m={m}.")
 
-        def _A(m: int, w: np.ndarray) -> np.ndarray:
+        def _A(m: int, w: npt.NDArray) -> npt.NDArray:
             A = np.diag(v=[1.0] * m, k=1)
             A[:, 0] = w
             A[-2, -1] = 0.0
             A[-1, -1] = 1.0
             return A
 
-        def _vec_solve(w: np.ndarray, n: int, m: int) -> np.ndarray:
+        def _vec_solve(w: npt.NDArray, n: int, m: int) -> npt.NDArray:
             r = np.array([0] * m + [1])
             A = _A(m=m, w=w)
             return r @ np.linalg.matrix_power(A, n - m + 1)
@@ -1126,7 +1134,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
             intervals.append(interval)
         return intervals
 
-    def _get_test_decision(self, interval_type: ABIntervalType) -> np.ndarray:
+    def _get_test_decision(self, interval_type: ABIntervalType) -> npt.NDArray:
         """Converts a critical value and test statistic into a boolean decision.
 
         Args:
@@ -1151,13 +1159,13 @@ class IntervalDetectorModel(DetectorModel, ABC):
         if self.test_type == TestType.ONE_SIDED_LOWER:
             _lower: pd.Series = self.critical_value.non_nullable_lower
             _check_shapes(_lower)
-            _mask: np.ndarray = (
+            _mask: npt.NDArray = (
                 test_result.test_statistic.to_numpy() <= _lower.to_numpy()
             )
         elif self.test_type == TestType.ONE_SIDED_UPPER:
             _upper: pd.Series = self.critical_value.non_nullable_upper
             _check_shapes(_upper)
-            _mask: np.ndarray = (
+            _mask: npt.NDArray = (
                 test_result.test_statistic.to_numpy() >= _upper.to_numpy()
             )
         elif self.test_type == TestType.TWO_SIDED:
@@ -1165,7 +1173,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
             _upper: pd.Series = self.critical_value.non_nullable_upper
             _check_shapes(_lower)
             _check_shapes(_upper)
-            _mask: np.ndarray = np.logical_or(
+            _mask: npt.NDArray = np.logical_or(
                 test_result.test_statistic.to_numpy() <= _lower.to_numpy(),
                 test_result.test_statistic.to_numpy() >= _upper.to_numpy(),
             )
@@ -1195,7 +1203,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
             )
 
     @staticmethod
-    def _get_true_run_indices(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _get_true_run_indices(x: npt.NDArray) -> Tuple[np.ndarray, np.ndarray]:
         """Helper function that finds consecutive runs of `True` values.
 
         Example:
@@ -1309,6 +1317,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
         def get_values(values: pd.Series, interval: ABInterval) -> pd.Series:
             assert interval.end_idx is not None
             end_idx = interval.end_idx
+            # pyre-fixme[7]: Expected `Series` but got `Union[DataFrame, Series]`.
             return pd.concat(
                 [
                     pd.Series(values[interval.start_idx]),
@@ -1556,6 +1565,7 @@ class TwoSampleIntervalDetectorModel(IntervalDetectorModel, ABC):
         # Convert value_a / value_b, consider difference of logs.
         difference = np.log(np.maximum(value_b, _EPS))
         difference -= np.log(np.maximum(value_a, _EPS))
+        # pyre-fixme[58]: `+` is not supported for operand types `int` and `Series`.
         difference_mean = difference - np.log(1 + effect_size)
         # Apply a delta method for the variance of the log by scaling
         # by a g'(𝜽) ** 2 term. In the case of g = log, g'(𝜽) = 1 / 𝜽.
@@ -1697,7 +1707,9 @@ class TwoSampleProportionIntervalDetectorModel(TwoSampleIntervalDetectorModel):
         References:
             https://en.wikipedia.org/wiki/Binomial_distribution#Normal_approximation
         """
+        # pyre-fixme[58]: `-` is not supported for operand types `int` and `Series`.
         _variance_a = value_a * (1 - value_a) / sample_count_a
+        # pyre-fixme[58]: `-` is not supported for operand types `int` and `Series`.
         _variance_b = value_b * (1 - value_b) / sample_count_b
         return _variance_a, _variance_b
 

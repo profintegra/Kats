@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 
 """The Simple Heuristic model
 
@@ -12,6 +14,7 @@ import logging
 from typing import Any, Callable, Optional
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import Params, TimeSeriesData
 from kats.models.model import Model
@@ -95,7 +98,7 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
         self.y_fcst_upper = None
         self.fcst_df = pd.DataFrame(data=None)
 
-    def _calc_last(self, fitted_values: np.ndarray) -> np.ndarray:
+    def _calc_last(self, fitted_values: npt.NDArray) -> npt.NDArray:
         """subtracts last 'steps' data points from self.data.value
 
         Args:
@@ -103,7 +106,7 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
         """
         return fitted_values[-1, :]
 
-    def _calc_mean(self, fitted_values: np.ndarray) -> np.ndarray:
+    def _calc_mean(self, fitted_values: npt.NDArray) -> npt.NDArray:
         """calculates mean from self.data.value
            returns ndarray with shape (steps,)
 
@@ -112,7 +115,7 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
         """
         return np.mean(fitted_values, 0)
 
-    def _calc_median(self, fitted_values: np.ndarray) -> np.ndarray:
+    def _calc_median(self, fitted_values: npt.NDArray) -> npt.NDArray:
         """calculates median from self.data.value
            returns ndarray with shape (steps,)
 
@@ -121,7 +124,7 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
         """
         return np.median(fitted_values, 0)
 
-    def _calc_percentile(self, fitted_values: np.ndarray) -> np.ndarray:
+    def _calc_percentile(self, fitted_values: npt.NDArray) -> npt.NDArray:
         """calculates percentile from self.data.value
            returns ndarray with shape (steps,)
 

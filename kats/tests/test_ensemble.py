@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import sys
 import unittest
 import unittest.mock as mock
@@ -10,6 +12,7 @@ from typing import Any, Dict
 from unittest import TestCase
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.data.utils import load_air_passengers, load_data
@@ -27,6 +30,7 @@ from kats.models.ensemble.kats_ensemble import KatsEnsemble
 from kats.models.ensemble.median_ensemble import MedianEnsembleModel
 from kats.models.ensemble.weighted_avg_ensemble import WeightedAvgEnsemble
 from kats.models.model import Model
+
 from parameterized.parameterized import parameterized
 
 np.random.seed(123321)
@@ -58,7 +62,7 @@ def get_fake_preds(
 
 
 # pyre-fixme[24]: Generic type `Model` expects 1 type parameter.
-def get_predict_model(m: Model, model_name: str, steps: int, freq: str) -> np.ndarray:
+def get_predict_model(m: Model, model_name: str, steps: int, freq: str) -> npt.NDArray:
     """Get model prediction based on model_name."""
     if model_name == "BaseEnsemble":
         # pyre-fixme[16]: `Model` has no attribute `_predict_all`.
@@ -71,35 +75,47 @@ def get_predict_model(m: Model, model_name: str, steps: int, freq: str) -> np.nd
 def get_ensemble_param(ts_param: Dict[str, bool]) -> EnsembleParams:
     """Returns EnsembleParams based on which base_models are included."""
     base_model_list = [
-        BaseModelParams("arima", arima.ARIMAParams(p=1, d=1, q=1))
-        if ts_param["arima"]
-        else "",
-        BaseModelParams("holtwinters", holtwinters.HoltWintersParams())
-        if ts_param["holtwinters"]
-        else "",
-        BaseModelParams(
-            "sarima",
-            sarima.SARIMAParams(
-                p=2,
-                d=1,
-                q=1,
-                trend="ct",
-                seasonal_order=(1, 0, 1, 12),
-                enforce_invertibility=False,
-                enforce_stationarity=False,
-            ),
-        )
-        if ts_param["sarima"]
-        else "",
-        BaseModelParams("prophet", prophet.ProphetParams())
-        if ts_param["prophet"]
-        else "",
-        BaseModelParams("linear", linear_model.LinearModelParams())
-        if ts_param["linear"]
-        else "",
-        BaseModelParams("quadratic", quadratic_model.QuadraticModelParams())
-        if ts_param["quadratic"]
-        else "",
+        (
+            BaseModelParams("arima", arima.ARIMAParams(p=1, d=1, q=1))
+            if ts_param["arima"]
+            else ""
+        ),
+        (
+            BaseModelParams("holtwinters", holtwinters.HoltWintersParams())
+            if ts_param["holtwinters"]
+            else ""
+        ),
+        (
+            BaseModelParams(
+                "sarima",
+                sarima.SARIMAParams(
+                    p=2,
+                    d=1,
+                    q=1,
+                    trend="ct",
+                    seasonal_order=(1, 0, 1, 12),
+                    enforce_invertibility=False,
+                    enforce_stationarity=False,
+                ),
+            )
+            if ts_param["sarima"]
+            else ""
+        ),
+        (
+            BaseModelParams("prophet", prophet.ProphetParams())
+            if ts_param["prophet"]
+            else ""
+        ),
+        (
+            BaseModelParams("linear", linear_model.LinearModelParams())
+            if ts_param["linear"]
+            else ""
+        ),
+        (
+            BaseModelParams("quadratic", quadratic_model.QuadraticModelParams())
+            if ts_param["quadratic"]
+            else ""
+        ),
         BaseModelParams("theta", theta.ThetaParams(m=12)) if ts_param["theta"] else "",
     ]
     return EnsembleParams(

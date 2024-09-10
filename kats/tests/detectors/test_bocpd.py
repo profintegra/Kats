@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import typing
 from collections import Counter
 from operator import attrgetter
@@ -10,6 +12,7 @@ from typing import Sequence
 from unittest import TestCase
 
 import numpy as np
+import numpy.typing as npt
 from kats.consts import TimeSeriesData
 from kats.detectors.bocpd import (
     BOCPDChangePoint,
@@ -20,6 +23,7 @@ from kats.detectors.bocpd import (
     TrendChangeParameters,
 )
 from kats.utils.simulator import Simulator
+
 from parameterized.parameterized import parameterized
 
 
@@ -198,7 +202,7 @@ class BOCPDTest(TestCase):
         )
 
     def assert_changepoints_exist(
-        self, ts: TimeSeriesData, cp_arr: np.ndarray, cps: Sequence[BOCPDChangePoint]
+        self, ts: TimeSeriesData, cp_arr: npt.NDArray, cps: Sequence[BOCPDChangePoint]
     ) -> None:
         # check if the change points were detected
         # TODO: this check only tests that all changepoints we find should be there

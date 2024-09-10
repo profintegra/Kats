@@ -3,8 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import random
 from datetime import timedelta
+from typing import Union
 from unittest import TestCase
 
 import numpy as np
@@ -13,13 +16,18 @@ from kats.consts import TimeSeriesData
 from kats.data.utils import load_air_passengers
 from kats.detectors.detector_consts import AnomalyResponse
 from kats.detectors.prophet_detector import (
+    get_holiday_dates,
     ProphetDetectorModel,
     ProphetScoreFunction,
     ProphetTrendDetectorModel,
     SeasonalityTypes,
+    to_seasonality,
 )
 from kats.utils.simulator import Simulator
+
 from parameterized.parameterized import parameterized
+
+START_DATE_TEST_DATA = "2018-01-01"
 
 
 class TestProphetDetector(TestCase):
@@ -27,7 +35,7 @@ class TestProphetDetector(TestCase):
         self, seed: int, length: int, magnitude: float, slope_factor: float
     ) -> TimeSeriesData:
         np.random.seed(seed)
-        sim = Simulator(n=length, freq="1D", start=pd.to_datetime("2020-01-01"))
+        sim = Simulator(n=length, freq="1D", start=pd.to_datetime(START_DATE_TEST_DATA))
 
         sim.add_trend(magnitude=magnitude * np.random.rand() * slope_factor)
         sim.add_seasonality(
@@ -47,7 +55,7 @@ class TestProphetDetector(TestCase):
         freq: str = "1D",
     ) -> TimeSeriesData:
         np.random.seed(seed)
-        sim = Simulator(n=length, freq=freq, start=pd.to_datetime("2020-01-01"))
+        sim = Simulator(n=length, freq=freq, start=pd.to_datetime(START_DATE_TEST_DATA))
 
         sim.add_seasonality(magnitude, period=timedelta(days=7))
         sim.add_noise(magnitude=signal_to_noise_ratio * magnitude)
@@ -64,7 +72,7 @@ class TestProphetDetector(TestCase):
     ) -> TimeSeriesData:
         np.random.seed(seed)
 
-        sim = Simulator(n=length, freq=freq, start=pd.to_datetime("2020-01-01"))
+        sim = Simulator(n=length, freq=freq, start=pd.to_datetime(START_DATE_TEST_DATA))
         magnitude = (max_val - min_val) / 2
 
         sim.add_trend(-0.2 * magnitude)
@@ -124,6 +132,7 @@ class TestProphetDetector(TestCase):
                 ts.extend(sim.stl_sim() + trend)
             rest_days_weekend = 2
             if i >= weeks:
+                # pyre-fixme[61]: `rest_days` is undefined, or not always defined.
                 rest_days_weekend = rest_days - rest_days_weekday
                 if rest_days_weekend == 0:
                     break
@@ -149,7 +158,9 @@ class TestProphetDetector(TestCase):
         # start time and freq don't matter, since we only care about the values
         np.random.seed(seed)
 
-        anomaly_sim = Simulator(n=length, freq="1D", start=pd.to_datetime("2020-01-01"))
+        anomaly_sim = Simulator(
+            n=length, freq="1D", start=pd.to_datetime(START_DATE_TEST_DATA)
+        )
         anomaly_sim.add_seasonality(magnitude, period=timedelta(days=2 * length))
         # anomaly_sim.add_noise(magnitude=0.3 * magnitude * np.random.rand())
 
@@ -166,7 +177,7 @@ class TestProphetDetector(TestCase):
         self, ts: TimeSeriesData, length: int, freq: str, magnitude: float
     ) -> None:
         ts_df = ts.to_dataframe()
-        sim = Simulator(n=length, freq=freq, start=pd.to_datetime("2020-01-01"))
+        sim = Simulator(n=length, freq=freq, start=pd.to_datetime(START_DATE_TEST_DATA))
         elevation = sim.trend_shift_sim(
             cp_arr=[0, 1],
             trend_arr=[0, 0, 0],
@@ -211,7 +222,7 @@ class TestProphetDetector(TestCase):
         event_relative_magnitude: float,
     ) -> TimeSeriesData:
         np.random.seed(seed)
-        sim = Simulator(n=length, freq=freq, start=pd.to_datetime("2020-01-01"))
+        sim = Simulator(n=length, freq=freq, start=pd.to_datetime(START_DATE_TEST_DATA))
 
         event_start = int(length * event_start_ratio)
         event_end = int(length * event_end_ratio)
@@ -542,8 +553,6 @@ class TestProphetDetector(TestCase):
         )
         self.assertAlmostEqual(
             z_score_response.scores.value[5],
-            # pyre-fixme[6]: For 2nd param expected `SupportsRSub[Variable[_T],
-            #  SupportsAbs[SupportsRound[object]]]` but got `float`.
             actual_z_score,
             places=5,
         )
@@ -567,8 +576,6 @@ class TestProphetDetector(TestCase):
         legacy_z_score_response = legacy_z_score_model.fit_predict(ts[90:], ts[:90])
         self.assertAlmostEqual(
             legacy_z_score_response.scores.value[5],
-            # pyre-fixme[6]: For 2nd param expected `SupportsRSub[Variable[_T],
-            #  SupportsAbs[SupportsRound[object]]]` but got `float`.
             actual_z_score,
             places=5,
         )
@@ -583,8 +590,6 @@ class TestProphetDetector(TestCase):
         legacy_z_score_response = legacy_z_score_model.fit_predict(ts[90:], ts[:90])
         self.assertNotAlmostEqual(
             legacy_z_score_response.scores.value[5],
-            # pyre-fixme[6]: For 2nd param expected `SupportsRSub[Variable[_T],
-            #  SupportsAbs[SupportsRound[object]]]` but got `float`.
             actual_z_score,
             places=5,
         )
@@ -616,8 +621,6 @@ class TestProphetDetector(TestCase):
             # pyre-ignore[16]: Optional type has no attribute `lower`.
             response.confidence_band.lower.value[5],
         )
-        # pyre-fixme[6]: For 2nd param expected `SupportsRSub[Variable[_T],
-        #  SupportsAbs[SupportsRound[object]]]` but got `float`.
         self.assertAlmostEqual(response.scores.value[5], actual_z_score, places=5)
 
     # pyre-fixme[56]: Pyre was not able to infer the type of the decorator
@@ -647,8 +650,6 @@ class TestProphetDetector(TestCase):
             # pyre-ignore[16]: Optional type has no attribute `lower`.
             response.confidence_band.lower.value[5],
         )
-        # pyre-fixme[6]: For 2nd param expected `SupportsRSub[Variable[_T],
-        #  SupportsAbs[SupportsRound[object]]]` but got `float`.
         self.assertAlmostEqual(response.scores.value[5], actual_z_score, places=5)
 
     def test_heteroskedastic_noise_signal(self) -> None:
@@ -659,14 +660,14 @@ class TestProphetDetector(TestCase):
         verifies that anomalies in low-noise segments have higher z-scores than those
         in high-noise segments. This occurs because low noise segments will have lower
         standard deviations, which result in higher z-scores.
-        With call ProphetDetectorMopdel without weekend seasonaluty this taest fails
+        With call ProphetDetectorModel without weekend seasonaluty this taest fails
         """
         ts = self.create_ts(length=100 * 24, signal_to_noise_ratio=0.05, freq="1h")
 
         # add heteroskedastic noise to the data
 
         ts.value *= (
-            (ts.time - pd.to_datetime("2020-01-01")) % timedelta(days=7)
+            (ts.time - pd.to_datetime(START_DATE_TEST_DATA)) % timedelta(days=7)
             > timedelta(days=3.5)
         ) * np.random.rand(100 * 24) * 2.5 + 0.5
 
@@ -681,6 +682,152 @@ class TestProphetDetector(TestCase):
         self.assertGreater(
             response.scores.value[13 * 24], response.scores.value[16 * 24]
         )
+
+    def test_heteroskedastic_noise_signal_with_holidays(self) -> None:
+        """Tests the z-score strategy on signals with heteroskedastic noise
+
+        This test creates synthetic data with heteroskedastic noise. Then, it adds
+        anomalies of identical magnitudes to segments with different noise. Finally, it
+        verifies that anomalies in low-noise segments have higher z-scores than those
+        in high-noise segments. This occurs because low noise segments will have lower
+        standard deviations, which result in higher z-scores.
+        We are addingh holiday, to check the param works
+        With call ProphetDetectorMopdel without weekend seasonaluty this taest fails
+        """
+        ts = self.create_ts(length=100 * 24, signal_to_noise_ratio=0.05, freq="1h")
+
+        # add heteroskedastic noise to the data
+
+        ts.value *= (
+            (ts.time - pd.to_datetime(START_DATE_TEST_DATA)) % timedelta(days=7)
+            > timedelta(days=3.5)
+        ) * np.random.rand(100 * 24) * 2.5 + 0.5
+
+        ts.value[93 * 24] += 100
+        ts.value[96 * 24] += 100
+
+        model = ProphetDetectorModel(
+            score_func="z_score",
+            seasonalities={SeasonalityTypes.WEEKEND: True},
+            country_holidays="US",
+        )
+        response = model.fit_predict(ts[80 * 24 :], ts[: 80 * 24])
+
+        self.assertGreater(
+            response.scores.value[13 * 24], response.scores.value[16 * 24]
+        )
+
+    def test_heteroskedastic_noise_signal_with_specific_holidays(self) -> None:
+        """Tests the z-score strategy on signals with heteroskedastic noise
+
+        This test creates synthetic data with heteroskedastic noise. Then, it adds
+        anomalies of identical magnitudes to segments with different noise. Finally, it
+        verifies that anomalies in low-noise segments have higher z-scores than those
+        in high-noise segments. This occurs because low noise segments will have lower
+        standard deviations, which result in higher z-scores.
+        We also adding value for the first day abnormakl, which shouldn;'t affects outcome as it holiday
+        With call ProphetDetectorModel without weekend seasonaluty this taest fails
+        """
+        ts = self.create_ts(length=100 * 24, signal_to_noise_ratio=0.05, freq="1h")
+
+        # add heteroskedastic noise to the data
+        playoffs = [
+            START_DATE_TEST_DATA,
+            (pd.to_datetime(START_DATE_TEST_DATA) + pd.Timedelta(days=4)).strftime(
+                "%Y-%m-%d"
+            ),
+        ]
+        ts.value *= (
+            (ts.time - pd.to_datetime(START_DATE_TEST_DATA)) % timedelta(days=7)
+            > timedelta(days=3.5)
+        ) * np.random.rand(100 * 24) * 2.5 + 0.5
+        ts.value[0] += 1000
+        ts.value[93 * 24] += 100
+        ts.value[96 * 24] += 100
+
+        model = ProphetDetectorModel(
+            score_func="z_score",
+            seasonalities={SeasonalityTypes.WEEKEND: True},
+            country_holidays="US",
+            holidays_list=playoffs,
+        )
+        response = model.fit_predict(ts[80 * 24 :], ts[: 80 * 24])
+
+        self.assertGreater(
+            response.scores.value[13 * 24], response.scores.value[16 * 24]
+        )
+
+        model = ProphetDetectorModel(
+            score_func="z_score",
+            seasonalities={SeasonalityTypes.WEEKEND: True},
+            country_holidays="UK",
+            holidays_list={"ds": playoffs, "holiday": ["playoff"] * len(playoffs)},
+        )
+        response = model.fit_predict(ts[80 * 24 :], ts[: 80 * 24])
+
+        self.assertGreater(
+            response.scores.value[13 * 24], response.scores.value[16 * 24]
+        )
+
+    def test_heteroskedastic_noise_signal_with_specific_holidays_mulitplier(
+        self,
+    ) -> None:
+        """Tests the z-score strategy on signals with heteroskedastic noise
+
+        This test creates synthetic data with heteroskedastic noise. Then, it adds
+        anomalies of identical magnitudes to segments with different noise.
+        We also adding value for the first day abnormakl, which shouldn;'t affects outcome as it holiday and holiday multiplier.
+        And we check, that multiplier is using during holiday and using in other cases.
+        With call ProphetDetectorModel without weekend seasonaluty this taest fails
+        """
+        ts = self.create_ts(length=100 * 24, signal_to_noise_ratio=0.05, freq="1h")
+
+        # add heteroskedastic noise to the data
+        playoffs = [
+            START_DATE_TEST_DATA,
+            (pd.to_datetime(START_DATE_TEST_DATA) + pd.Timedelta(days=94)).strftime(
+                "%Y-%m-%d"
+            ),
+        ]
+        holiday_in_predict: str = playoffs[1]
+        ts.value *= (
+            (ts.time - pd.to_datetime(START_DATE_TEST_DATA)) % timedelta(days=7)
+            > timedelta(days=3.5)
+        ) * np.random.rand(100 * 24) * 2.5 + 0.5
+        ts.value[0] += 1000
+        ts.value[93 * 24] += 100
+        ts.value[96 * 24] += 100
+
+        model = ProphetDetectorModel(
+            score_func="z_score",
+            seasonalities={SeasonalityTypes.WEEKEND: True},
+            country_holidays="US",
+            holidays_list=playoffs,
+            holiday_multiplier=0,
+        )
+        response = model.fit_predict(ts[80 * 24 :], ts[: 80 * 24])
+        value_to_check: float = response.scores.value.iloc[
+            response.scores.time[
+                response.scores.time == pd.to_datetime(holiday_in_predict + " 01:00:00")
+            ].index[0]
+        ]
+        self.assertEqual(value_to_check, 0)
+        value_to_check = response.scores.value.iloc[
+            response.scores.time[
+                response.scores.time == pd.to_datetime(holiday_in_predict + " 23:00:00")
+            ].index[0]
+        ]
+
+        self.assertEqual(value_to_check, 0)
+        value_to_check = response.scores.value.iloc[
+            response.scores.time[
+                response.scores.time
+                == pd.to_datetime(holiday_in_predict + " 01:00:00")
+                + pd.Timedelta(days=1)
+            ].index[0]
+        ]
+
+        self.assertNotEqual(value_to_check, 0)
 
     def test_weekend_seasonality_noise_signal(self) -> None:
         """Tests the accuracy with heteroskedastic series and noise
@@ -872,3 +1019,59 @@ class TestProphetTrendDetectorModel(TestCase):
         self.assertEqual(
             response_wo_historical_data.scores.value.shape, hist_ts.value.shape
         )
+
+    # pyre-fixme[56]: Pyre was not able to infer the type of the decorator `parameter...
+    @parameterized.expand(
+        [
+            ("day", SeasonalityTypes.DAY),
+            ("week", SeasonalityTypes.WEEK),
+            ("weekend", SeasonalityTypes.WEEKEND),
+            ("year", SeasonalityTypes.YEAR),
+            (SeasonalityTypes.DAY, SeasonalityTypes.DAY),
+            (SeasonalityTypes.WEEK, SeasonalityTypes.WEEK),
+            (SeasonalityTypes.WEEKEND, SeasonalityTypes.WEEKEND),
+            (SeasonalityTypes.YEAR, SeasonalityTypes.YEAR),
+        ]
+    )
+    def test_to_seasonality(
+        self, actual: Union[str, SeasonalityTypes], expected: SeasonalityTypes
+    ) -> None:
+        self.assertEqual(to_seasonality(actual), expected)
+
+
+class TestGetHolidayDates(TestCase):
+    def test_no_args(self) -> None:
+        result = get_holiday_dates()
+        self.assertTrue(result.empty)
+
+    def test_only_holidays(self) -> None:
+        holidays = pd.DataFrame(
+            {"ds": pd.date_range(start="1/1/2020", end="1/10/2020")}
+        )
+        result = get_holiday_dates(holidays=holidays, dates=holidays["ds"])
+        pd.testing.assert_series_equal(
+            result,
+            pd.to_datetime(pd.Series(holidays["ds"].dt.date, name=None))
+            .sort_values(ignore_index=True)
+            .rename(
+                None
+            ),  # if name setting to None on pd.Series constructor it doesn't really change a name!
+        )
+
+    def test_only_country_holidays(self) -> None:
+        dates = pd.Series(pd.date_range(start="1/1/2020", end="12/31/2020"))
+        result = get_holiday_dates(country_holidays="US", dates=dates)
+        self.assertFalse(result.empty)
+        self.assertTrue((result.dt.year == 2020).all())
+
+    def test_holidays_and_country_holidays(self) -> None:
+        holidays = pd.DataFrame(
+            {"ds": pd.date_range(start="1/1/2020", end="1/10/2020")}
+        )
+        dates = pd.Series(pd.date_range(start="1/1/2020", end="12/31/2020"))
+        result = get_holiday_dates(
+            holidays=holidays, country_holidays="US", dates=dates
+        )
+        self.assertFalse(result.empty)
+        self.assertTrue((result.dt.year == 2020).all())
+        self.assertGreater(len(result), len(holidays))

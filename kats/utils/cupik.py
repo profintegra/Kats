@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import logging
 import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -21,19 +23,16 @@ class Step(Protocol):
     __type__: str
     data: TimeSeriesData
 
-    def remover(self, interpolate: bool) -> TimeSeriesData:
-        ...
+    def remover(self, interpolate: bool) -> TimeSeriesData: ...
 
-    def transform(self, data: TimeSeriesData) -> object:
-        ...
+    def transform(self, data: TimeSeriesData) -> object: ...
 
     def fit(
         self,
         x: Union[pd.DataFrame, np.ndarray],
         y: Optional[Union[pd.Series, np.ndarray]],
         **kwargs: Any,
-    ) -> List[TimeSeriesData]:
-        ...
+    ) -> List[TimeSeriesData]: ...
 
 
 PipelineStep = Tuple[str, Step]

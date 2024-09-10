@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 Detectors based on predictors, basically work as follows:
 calculate the residual (i.e., difference between predicted and current value),
@@ -94,9 +96,6 @@ class KDEResidualTranslator:
 
         value = residual.value
         mask = value > value.quantile(self._ignore_below_frac)
-        # pyre-fixme[58]: `&` is not supported for operand types
-        #  `Union[pd.core.frame.DataFrame, pd.core.series.Series]` and
-        #  `Union[pd.core.frame.DataFrame, pd.core.series.Series]`.
         mask &= value < value.quantile(self._ignore_above_frac)
         value = value[mask]
 

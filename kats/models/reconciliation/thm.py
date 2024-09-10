@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """This module contains the class TemporalHierarchicalModel class.
 """
 
@@ -11,6 +13,7 @@ from math import gcd
 from typing import Dict, List, Optional, Type
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import TimeSeriesData
 from kats.metrics import metrics
@@ -146,7 +149,7 @@ class TemporalHierarchicalModel:
         self.info_fcsts = fcsts
         self.info_residuals = residuals
 
-    def get_S(self) -> np.ndarray:
+    def get_S(self) -> npt.NDArray:
         """Calculate S matrix.
 
         Returns:
@@ -163,7 +166,7 @@ class TemporalHierarchicalModel:
                 ans.append(tem)
         return np.row_stack(ans)
 
-    def _aggregate_data(self, data: np.ndarray, k: int) -> np.ndarray:
+    def _aggregate_data(self, data: npt.NDArray, k: int) -> npt.NDArray:
         """Aggregate data according to level k."""
 
         if k == 1:
@@ -173,7 +176,7 @@ class TemporalHierarchicalModel:
         return (data[: int(h * k)]).reshape(-1, k).sum(axis=1)
 
     # pyre-fixme[24]: Generic type `Model` expects 1 type parameter.
-    def _get_residuals(self, model: Model) -> np.ndarray:
+    def _get_residuals(self, model: Model) -> npt.NDArray:
         """Calculate residuals of each base model.
 
         Args:
@@ -228,7 +231,7 @@ class TemporalHierarchicalModel:
             self.residuals = residuals
         return residuals
 
-    def _get_residual_matrix(self) -> np.ndarray:
+    def _get_residual_matrix(self) -> npt.NDArray:
         """
         Reshape residuals into matrix format.
 
@@ -249,7 +252,7 @@ class TemporalHierarchicalModel:
             self.res_matrix = res_matrix
         return res_matrix
 
-    def get_W(self, method: str = "struc", eps: float = 1e-5) -> np.ndarray:
+    def get_W(self, method: str = "struc", eps: float = 1e-5) -> npt.NDArray:
         """
         Calculate W matrix.
 
@@ -440,6 +443,7 @@ class TemporalHierarchicalModel:
         freq: Optional[str] = None,
         origin_fcst: bool = False,
         fcst_levels: Optional[List[int]] = None,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         last_timestamp: Optional[pd.Timestamp] = None,
     ) -> Dict[str, Dict[int, pd.DataFrame]]:
         """Generate reconciled forecasts (with time index).

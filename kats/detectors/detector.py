@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 Defines the base class for detectors.
 """
@@ -14,6 +16,7 @@ from typing import Any, Dict, Generic, Optional, Sequence, Tuple, Type, TypeVar,
 try:
     import plotly.graph_objs as go
 
+    # pyre-fixme[5]: Global expression must be annotated.
     Figure = go.Figure
 except ImportError:
     Figure = object
@@ -122,6 +125,7 @@ class Detector(ABC):
         ts_out = TimeSeriesData(df_final)
         return ts_out
 
+    # pyre-fixme[11]: Annotation `Figure` is not defined as a type.
     def plot(self, **kwargs: Any) -> Union[plt.Axes, Sequence[plt.Axes], Figure]:
         raise NotImplementedError()
 

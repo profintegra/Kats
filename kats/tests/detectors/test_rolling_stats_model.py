@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 
 from datetime import datetime
 from unittest import TestCase
@@ -17,6 +19,7 @@ from kats.consts import (
     TimeSeriesData,
 )
 from kats.detectors.rolling_stats_model import RollingStatsModel
+
 from parameterized.parameterized import parameterized
 
 

@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 This module reads synthetic data from daiquery and preprocess it as data_x=features, data_y=hpt_res for given algorithm
 """
@@ -68,9 +70,11 @@ class SynthMetadataReader:
                     .map(lambda kv: kv[a][0])
                     .map(
                         lambda kv: {
-                            k: v
-                            if k not in self.PARAMS_TO_SCALE_DOWN
-                            else v / SynthMetadataReader.NUM_SECS_IN_DAY
+                            k: (
+                                v
+                                if k not in self.PARAMS_TO_SCALE_DOWN
+                                else v / SynthMetadataReader.NUM_SECS_IN_DAY
+                            )
                             for k, v in kv.items()
                         }
                     )

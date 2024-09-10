@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """The Empirical Confidence (Prediction) Interval
 
 This is an empirical way to estimate the prediction interval for any forecasting models
@@ -303,6 +305,7 @@ class EmpConfidenceInt:
             fig = plt.gcf()
 
         ax.plot(pd.to_datetime(self.data.time), self.data.value, linecolor)
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `to_pydatetime`.
         fcst_dates = dates.to_pydatetime()
         ax.plot(fcst_dates, df.fcst, ls="-", c=fcstcolor)
 

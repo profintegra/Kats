@@ -3,12 +3,15 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 # This file contains dummy data for the model unit tests
 
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
+# pyre-fixme[21]: Could not find name `Timestamp` in `pandas`.
 from pandas import Timestamp
 
 AIR_FCST_LINEAR_95 = pd.DataFrame(
@@ -4693,7 +4696,6 @@ METALEARNING_TEST_T1_FEATURES: Dict[str, float] = {
     "diff2y_pacf5": 1.8304505333773173,
     "seas_acf1": 0.16081850213286256,
     "seas_pacf1": 0.22189491849213927,
-    "firstmin_ac": 1,
     "firstzero_ac": 3,
     "holt_alpha": 0.21052631578947367,
     "holt_beta": 0.21052631578947367,
@@ -4805,7 +4807,6 @@ METALEARNING_TEST_T2_FEATURES = {
     "diff2y_pacf5": 1.2927400320509825,
     "seas_acf1": 0.00474904222956029,
     "seas_pacf1": 0.015773034095832947,
-    "firstmin_ac": 1,
     "firstzero_ac": 4,
     "holt_alpha": 0.20073207666635207,
     "holt_beta": 0.20073038111605043,
@@ -4850,7 +4851,6 @@ METALEARNING_TEST_FEATURES = [
         0.21705932,
         1.36665286,
         -0.59686006,
-        0.94514967,
         -0.11579573,
         0.43509245,
         0.92586754,
@@ -4892,7 +4892,6 @@ METALEARNING_TEST_FEATURES = [
         -0.96291282,
         -0.89634859,
         0.47413525,
-        1.66061776,
         0.41800094,
         -0.50182222,
         1.00137551,

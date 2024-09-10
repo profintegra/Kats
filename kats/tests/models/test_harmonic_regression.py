@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 import unittest
 from unittest import TestCase
 
@@ -34,7 +36,6 @@ TEST_DATA = {
 
 
 class testHarmonicRegression(TestCase):
-    # pyre-fixme[16]: Module `parameterized.parameterized` has no attribute `expand`.
     @parameterized.expand(
         [
             [
@@ -60,7 +61,6 @@ class testHarmonicRegression(TestCase):
         self.assertIsNotNone(hrm.harms)
 
         preds = hrm.predict(series_times.iloc[[0]])
-        # pyre-fixme[6]: For 3rd param expected `None` but got `float`.
         self.assertAlmostEqual(preds["fcst"][0], harms_sum[0], delta=0.0001)
 
     def test_plot(self) -> None:

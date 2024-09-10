@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 """
 This file implements the Dynamic Time Warping (DTW) ChangePoint detector
 algorithm as a DetectorModel, to provide a common interface.
@@ -41,6 +43,7 @@ class DTWCPDChangePoint(TimeSeriesChangePoint):
 
     def __init__(
         self,
+        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         start_time: pd.Timestamp,
         end_time: pd.Timestamp,
         confidence: float,
@@ -71,7 +74,7 @@ class DTWTimeSeriesTooSmallException(Exception):
 
 
 @dataclass
-class DTWSubsequenceMatch(object):
+class DTWSubsequenceMatch:
     matching_ts_name: str
     matching_ts_index: int
     matched_ts_name: str
