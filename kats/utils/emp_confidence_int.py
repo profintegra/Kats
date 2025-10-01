@@ -18,6 +18,7 @@ from typing import List, Optional, Tuple, Type
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import Params, TimeSeriesData
 from kats.utils.backtesters import BackTesterRollingWindow
@@ -53,8 +54,8 @@ class EmpConfidenceInt:
 
     freq: Optional[str] = None
     dates: Optional[pd.DatetimeIndex] = None
-    predicted: Optional[np.ndarray] = None
-    coefs: Optional[np.ndarray] = None
+    predicted: Optional[npt.NDArray] = None
+    coefs: Optional[npt.NDArray] = None
     df: Optional[pd.DataFrame] = None
     SE: Optional[pd.DataFrame] = None
 
@@ -146,6 +147,8 @@ class EmpConfidenceInt:
 
         logging.info("Run backtesting.")
         backtester.run_backtest()
+        # pyre-fixme[8]: Attribute has type `Optional[DataFrame]`; used as
+        #  `Union[float, Series]`.
         self.SE = (
             pd.DataFrame(backtester.raw_errors, copy=False).transpose().std(axis=1)
         )
@@ -321,7 +324,9 @@ class EmpConfidenceInt:
         if predicted.shape[1] == 4:
             ax.fill_between(
                 fcst_dates,
+                # pyre-fixme[16]: `ndarray` has no attribute `fcst_lower`.
                 predicted.fcst_lower,
+                # pyre-fixme[16]: `ndarray` has no attribute `fcst_upper`.
                 predicted.fcst_upper,
                 color=modelcolor,
                 alpha=modelalpha,

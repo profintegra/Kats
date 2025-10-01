@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -28,7 +29,6 @@ from kats.tsfeatures.tsfeatures import TsFeatures
 from sklearn.model_selection import train_test_split
 
 _MODELS = {
-    "neuralprophet",
     "prophet",
     "arima",
     "sarima",
@@ -55,8 +55,6 @@ class DefaultModelParams:
     theta_numerical_idx: List[str] = field(default_factory=list)
     stlf_categorical_idx: List[str] = field(default_factory=list)
     stlf_numerical_idx: List[str] = field(default_factory=list)
-    neuralprophet_categorical_idx: List[str] = field(default_factory=list)
-    neuralprophet_numerical_idx: List[str] = field(default_factory=list)
     prophet_categorical_idx: List[str] = field(default_factory=list)
     prophet_numerical_idx: List[str] = field(default_factory=list)
     cusum_categorical_idx: List[str] = field(default_factory=list)
@@ -80,14 +78,6 @@ class DefaultModelParams:
         self.theta_numerical_idx = []
         self.stlf_categorical_idx = ["method", "m"]
         self.stlf_numerical_idx = []
-        self.neuralprophet_categorical_idx = [
-            "yearly_seasonality",
-            "weekly_seasonality",
-            "daily_seasonality",
-            "seasonality_mode",
-            "changepoints_range",
-        ]
-        self.neuralprophet_numerical_idx = []
         self.prophet_categorical_idx = [
             "yearly_seasonality",
             "weekly_seasonality",
@@ -125,9 +115,6 @@ class DefaultModelNetworks:
     stlf_n_hidden_shared: List[int] = field(default_factory=list)
     stlf_n_hidden_cat_combo: List[List[int]] = field(default_factory=list)
     stlf_n_hidden_num: List[int] = field(default_factory=list)
-    neuralprophet_n_hidden_shared: List[int] = field(default_factory=list)
-    neuralprophet_n_hidden_cat_combo: List[List[int]] = field(default_factory=list)
-    neuralprophet_n_hidden_num: List[int] = field(default_factory=list)
     prophet_n_hidden_shared: List[int] = field(default_factory=list)
     prophet_n_hidden_cat_combo: List[List[int]] = field(default_factory=list)
     prophet_n_hidden_num: List[int] = field(default_factory=list)
@@ -154,9 +141,6 @@ class DefaultModelNetworks:
         self.stlf_n_hidden_shared = [20]
         self.stlf_n_hidden_cat_combo = [[5], [5]]
         self.stlf_n_hidden_num = []
-        self.neuralprophet_n_hidden_shared = [40]
-        self.neuralprophet_n_hidden_cat_combo = [[5], [5], [2], [3], [5]]
-        self.neuralprophet_n_hidden_num = []
         self.prophet_n_hidden_shared = [40]
         self.prophet_n_hidden_cat_combo = [[5], [5], [2], [3], [5], [5], [5]]
         self.prophet_n_hidden_num = []
@@ -186,7 +170,7 @@ class MetaLearnHPT:
         categorical_idx: Optional; A list of strings of the names of the categorical hyper-parameters. Default is None.
         numerical_idx: Optional; A list of strings of the names of the numerical hyper-parameters. Default is None.
         default_model: Optional; A string of the name of the forecast model whose default settings will be used.
-                       Can be 'arima', 'sarima', 'theta', 'neuralprophet', 'prophet', 'holtwinters', 'stlf' or None. Default is None.
+                       Can be 'arima', 'sarima', 'theta', 'prophet', 'holtwinters', 'stlf' or None. Default is None.
         scale: Optional; A boolean to specify whether or not to normalize time series features to zero mean and unit variance. Default is True.
         load_model: Optional; A boolean to specify whether or not to load a trained model. Default is False.
 
@@ -243,7 +227,6 @@ class MetaLearnHPT:
             default_model_params = DefaultModelParams()
 
             if default_model is not None:
-
                 if (categorical_idx is not None) or (numerical_idx is not None):
                     msg = """
                          Default model cannot accept customized categorical_idx or customized numerical_idx! Please set
@@ -258,7 +241,7 @@ class MetaLearnHPT:
                     categorical_idx = getattr(default_model_params, categorical_idx_var)
                     numerical_idx = getattr(default_model_params, numerical_idx_var)
                 else:
-                    msg = f"default_model={default_model} is not available! Please choose one from 'neuralprophet', 'prophet', 'arima', 'sarima', 'holtwinters', 'stlf', 'theta', 'cusum', 'statsig'"
+                    msg = f"default_model={default_model} is not available! Please choose one from 'prophet', 'arima', 'sarima', 'holtwinters', 'stlf', 'theta', 'cusum', 'statsig'"
                     raise _log_error(msg)
 
             if (not numerical_idx) and (not categorical_idx):
@@ -277,7 +260,7 @@ class MetaLearnHPT:
             )
             # pyre-fixme[4]: Attribute must be annotated.
             self._dim_output_num = (
-                self._target_num.shape[1] if self.numerical_idx else 0
+                self._target_num.shape[1] if self._target_num is not None else 0
             )
             self._get_target_cat()
             self._validate_data()
@@ -456,7 +439,9 @@ class MetaLearnHPT:
         print("Multi-task neural network structure:")
         print(self.model)
 
-    def _prepare_data(self, val_size: float) -> Tuple[
+    def _prepare_data(
+        self, val_size: float
+    ) -> Tuple[
         torch.FloatTensor,
         Optional[torch.LongTensor],
         Optional[torch.FloatTensor],
@@ -692,7 +677,7 @@ class MetaLearnHPT:
         return res
 
     def pred_by_feature(
-        self, source_x: Union[np.ndarray, List[np.ndarray], pd.DataFrame]
+        self, source_x: Union[npt.NDArray, List[npt.NDArray], pd.DataFrame]
     ) -> List[Dict[str, Any]]:
         """Predict hyper-parameters for time series features.
 
@@ -905,10 +890,13 @@ class MultitaskNet(nn.Module):
         else:
             y_pred_cat_combo = []
             for cat_layer in self.cat_layer_combo:
+                # pyre-fixme[29]: Call error: `Union[nn.modules.module.Module, torch._tensor.Tens...
                 y_pred_cat = cat_layer[0](x)
+                # pyre-fixme[6]: Incompatible parameter type: In call `len`, for 1st positional a...
                 for i in range(1, len(cat_layer)):
                     # the last layer has no activation function
                     y_pred_cat = nn.functional.relu(y_pred_cat)
+                    # pyre-fixme[29]: Call error: `Union[nn.modules.module.Module, torch._tensor....
                     y_pred_cat = cat_layer[i](y_pred_cat)
                 y_pred_cat_combo.append(y_pred_cat)
 

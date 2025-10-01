@@ -17,6 +17,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import statsmodels.api as sm
 from kats.consts import Params, TimeSeriesData
@@ -74,16 +75,17 @@ class LinearModel(Model[LinearModelParams]):
         self._X_future: Optional[List[int]] = None
         self.past_length: int = len(data.time)
         self.dates: Optional[pd.DatetimeIndex] = None
-        self.y_fcst: Optional[Union[pd.Series, np.ndarray]] = None
-        self.sdev: Optional[Union[np.ndarray, float]] = None
-        self.y_fcst_lower: Optional[Union[pd.Series, np.ndarray, float]] = None
-        self.y_fcst_upper: Optional[Union[pd.Series, np.ndarray, float]] = None
+        self.y_fcst: Optional[Union[pd.Series, npt.NDArray]] = None
+        self.sdev: Optional[Union[npt.NDArray, float]] = None
+        self.y_fcst_lower: Optional[Union[pd.Series, npt.NDArray, float]] = None
+        self.y_fcst_upper: Optional[Union[pd.Series, npt.NDArray, float]] = None
 
     def fit(self) -> None:
         """fit Linear Model."""
         logging.debug(
-            "Call fit() with parameters: "
-            "alpha:{alpha}".format(alpha=self.params.alpha)
+            "Call fit() with parameters: " "alpha:{alpha}".format(
+                alpha=self.params.alpha
+            )
         )
 
         # prepare X and y for linear model
@@ -110,8 +112,9 @@ class LinearModel(Model[LinearModelParams]):
                 `time`, `fcst`, `fcst_lower`, and `fcst_upper`
         """
         logging.debug(
-            "Call predict() with parameters. "
-            "steps:{steps}, kwargs:{kwargs}".format(steps=steps, kwargs=kwargs)
+            "Call predict() with parameters. " "steps:{steps}, kwargs:{kwargs}".format(
+                steps=steps, kwargs=kwargs
+            )
         )
         # pyre-fixme[16]: `Optional` has no attribute `time`.
         self.freq = kwargs.get("freq", pd.infer_freq(self.data.time))
@@ -142,6 +145,9 @@ class LinearModel(Model[LinearModelParams]):
         self.dates = dates[dates != last_date]
 
         if include_history:
+            # pyre-fixme[8]: Attribute has type `Optional[DatetimeIndex]`; used as
+            #  `ndarray[Any, dtype[Any]]`.
+            # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtype[An...
             self.dates = np.concatenate((pd.to_datetime(self.data.time), self.dates))
 
         self.fcst_df = pd.DataFrame(

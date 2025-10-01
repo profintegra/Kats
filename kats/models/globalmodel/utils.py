@@ -767,7 +767,6 @@ class AdjustedPinballLoss(_Loss):
         reduction: str = "mean",
         input_log: bool = True,
     ) -> None:
-
         super(AdjustedPinballLoss, self).__init__(
             size_average=None, reduce=None, reduction=reduction
         )
@@ -981,6 +980,7 @@ class GMFeature:
             feature.append(
                 np.concatenate(
                     [
+                        # pyre-fixme[16]: `int` has no attribute `values`.
                         pdt.day.values,
                         pdt.month.values,
                         pdt.dayofweek.values,
@@ -1005,9 +1005,11 @@ class GMFeature:
         indices = []
         if PANDAS_VERSION < "2.0.3":
             # compute day of week indices
+            # pyre-fixme[16]: `DatetimeIndex` has no attribute `dayofweek`.
             indices.append(pdt.dayofweek.values + offset)
 
             # compute bi-week indices
+            # pyre-fixme[16]: `DatetimeIndex` has no attribute `weekofyear`.
             indices.append((pdt.weekofyear.values - 1) // 2 + 7 + offset)
         else:
             # compute day of week indices
@@ -1016,6 +1018,7 @@ class GMFeature:
             indices.append((pdt.isocalendar().week.values - 1) // 2 + 7 + offset)
 
         # compute day of month indices
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `day`.
         indices.append(pdt.day.values + 6 + 27 + offset)
         indices = np.concatenate(indices)
         ans[indices.astype(int)] = 1.0
@@ -1031,6 +1034,7 @@ class GMFeature:
         """
         n = len(time)
         ans = np.zeros(n * 24)
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `hour`.
         indices = pd.to_datetime(time[:, -1]).hour.values + np.arange(0, n * 24, 24)
         ans[indices] = 1.0
 
@@ -1046,6 +1050,7 @@ class GMFeature:
         """
         n = len(time)
         ans = np.zeros(n * 12)
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `month`.
         indices = pd.to_datetime(time[:, -1]).month.values + np.arange(0, n * 12, 12)
         ans[indices] = 1.0
         return torch.tensor(ans.reshape(n, -1), dtype=torch.get_default_dtype())
@@ -1069,7 +1074,9 @@ class GMFeature:
         """
         pdt = pd.to_datetime(time[:, -1])
 
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `hour`.
         hr = pdt.hour.values + 1
+        # pyre-fixme[16]: `DatetimeIndex` has no attribute `minute`.
         minute = pdt.minute.values + 1
 
         return torch.tensor(np.column_stack([hr, minute])).log()
@@ -1224,7 +1231,6 @@ class GMParam:
         jit: bool = False,
         gmname: Optional[str] = None,
     ) -> None:
-
         self._valid_freq(freq)
 
         self.model_type: str = self._valid_model_type(model_type)
@@ -1519,7 +1525,6 @@ class GMParam:
 
     # pyre-fixme[2]: Parameter must be annotated.
     def _valid_gmfeature(self, gmfeature, input_window) -> None:
-
         if gmfeature is None:
             self.gmfeature = None
             return
@@ -1686,8 +1691,13 @@ def pad_ts(ts: TimeSeriesData, n: int, freq: pd.Timedelta) -> TimeSeriesData:
     val_col = [col for col in df.columns if col != time_col][0]
     pad_val = df[val_col].values[df[val_col].first_valid_index()]
     # add the padding value
-    df = df.append(
-        {time_col: df[time_col].iloc[0] - n * freq, val_col: pad_val},
+    df = pd.concat(
+        [
+            df,
+            pd.DataFrame(
+                [{time_col: df[time_col].iloc[0] - n * freq, val_col: pad_val}]
+            ),
+        ],
         ignore_index=True,
     )
     return TimeSeriesData(df)

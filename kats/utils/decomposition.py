@@ -24,6 +24,7 @@ from kats.consts import (
 from statsmodels.tsa.seasonal import seasonal_decompose, STL
 
 # from numpy.typing import ArrayLike
+# pyre-fixme[24]: Generic type `np.ndarray` expects 2 type parameters.
 ArrayLike = Union[np.ndarray, Sequence[float]]
 Figsize = Tuple[int, int]
 
@@ -188,7 +189,7 @@ class TimeSeriesDecomposition:
 
         # pyre-fixme[16]: Module `seasonal` has no attribute `STL`.
         result = STL(
-            data,
+            data.squeeze(),
             period=period,
             seasonal=self.seasonal,
             trend=self.trend,
@@ -215,6 +216,8 @@ class TimeSeriesDecomposition:
             tmp = pd.DataFrame(ts)
             if original.shape[1] > 1:
                 tmp.columns = original.columns
+            # pyre-fixme[6]: For 2nd argument expected `Union[None, DatetimeIndex,
+            #  Series]` but got `Index`.
             ret[name] = TimeSeriesData(value=tmp, time=original.index)
         return ret
 
@@ -343,7 +346,6 @@ class SeasonalityHandler:
                     self.data.time.diff().value_counts().sort_values(ascending=False)
                 )
                 if freq_counts.iloc[0] >= int(len(self.data)) * 0.5 - 1:
-                    # pyre-fixme[4]: Attribute must be annotated.
                     self.frequency = freq_counts.index[0]
                 else:
                     _log.debug(f"freq_counts: {freq_counts}")

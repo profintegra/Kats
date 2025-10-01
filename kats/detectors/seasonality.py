@@ -48,6 +48,7 @@ from scipy.signal import find_peaks  # @manual
 from statsmodels.tsa.stattools import acf
 
 # from numpy.typing import ArrayLike
+# pyre-fixme[24]: Generic type `np.ndarray` expects 2 type parameters.
 ArrayLike = Union[np.ndarray, Sequence[float]]
 
 
@@ -300,7 +301,9 @@ class FFTDetector(Detector):
         pos_fft = fft.loc[fft["ampl"] > 0]
         median = pos_fft["ampl"].median()
         pos_fft_above_med = pos_fft[pos_fft["ampl"] > median]
-        mad = pos_fft_above_med["ampl"].mad()
+        mad = (
+            (pos_fft_above_med["ampl"] - pos_fft_above_med["ampl"].mean()).abs().mean()
+        )
 
         threshold = median + mad * mad_threshold
 

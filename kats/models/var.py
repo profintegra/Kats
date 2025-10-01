@@ -24,7 +24,7 @@ We use the implementation in statsmodels and re-write the API to adapt Kats deve
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import Params, TimeSeriesData
 from kats.models.model import Model
@@ -81,8 +81,8 @@ class VARModel(Model[VARParams]):
 
     model: Optional[VARResults] = None
     k_ar: Optional[int] = None
-    sigma_u: Optional[np.ndarray] = None
-    resid: Optional[np.ndarray] = None
+    sigma_u: Optional[npt.NDArray] = None
+    resid: Optional[npt.NDArray] = None
     freq: Optional[str] = None
     alpha: Optional[float] = None
     dates: Optional[pd.DatetimeIndex] = None
@@ -150,15 +150,16 @@ class VARModel(Model[VARParams]):
             raise ValueError("Call fit() before predict().")
 
         logging.debug(
-            "Call predict() with parameters. "
-            "steps:{steps}, kwargs:{kwargs}".format(steps=steps, kwargs=kwargs)
+            "Call predict() with parameters. " "steps:{steps}, kwargs:{kwargs}".format(
+                steps=steps, kwargs=kwargs
+            )
         )
         self.include_history = include_history
         # pyre-fixme[16]: `Optional` has no attribute `time`.
         self.freq = kwargs.get("freq", pd.infer_freq(self.data.time))
         self.alpha = alpha = kwargs.get("alpha", 0.05)
 
-        fcst = model.forecast_interval(y=model.y, steps=steps, alpha=alpha)
+        fcst = model.forecast_interval(y=model.endog, steps=steps, alpha=alpha)
         logging.info("Generated forecast data from VAR model.")
         logging.debug("Forecast data: {fcst}".format(fcst=fcst))
 

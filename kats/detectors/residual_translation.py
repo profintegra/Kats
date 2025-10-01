@@ -14,6 +14,7 @@ In practice, the residuals are often non-normal (sometimes even being
 asymmetric). This module “learns” the distribution of the residual (using kernel
 density estimation), and outputs a false-alarm probability based on it.
 """
+
 from __future__ import annotations
 
 from typing import Optional
@@ -147,6 +148,8 @@ class KDEResidualTranslator:
                 each instance (row) in the input.
         """
         proba = self.predict_log_proba(y, yhat, yhat_lower, yhat_upper, residual)
+        # pyre-fixme[8]: Attribute has type `Union[DataFrame, Series]`; used as
+        #  `ndarray[Any, dtype[Any]]`.
         proba.value = np.exp(proba.value)
         return proba
 

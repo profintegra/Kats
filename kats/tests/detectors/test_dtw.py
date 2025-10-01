@@ -45,8 +45,8 @@ class DTWCPDTest(TestCase):
 
         expected_result = [
             DTWCPDChangePoint(
-                start_time=pd.Timestamp("2021-03-02 00:00:00", freq="D"),
-                end_time=pd.Timestamp("2021-04-20 00:00:00", freq="D"),
+                start_time=pd.Timestamp("2021-03-02 00:00:00"),
+                end_time=pd.Timestamp("2021-04-20 00:00:00"),
                 confidence=1e9,
                 ts_name="ts3",
             )
@@ -56,7 +56,6 @@ class DTWCPDTest(TestCase):
         self.assertEqual(cps, expected_result)
 
     def test_no_spike_in_zero_data_yields_no_cp(self) -> None:
-
         N = 200
         df = pd.DataFrame(
             {
@@ -99,8 +98,8 @@ class DTWCPDTest(TestCase):
 
         expected_result = [
             DTWCPDChangePoint(
-                start_time=pd.Timestamp("2021-03-02 00:00:00", freq="D"),
-                end_time=pd.Timestamp("2021-04-20 00:00:00", freq="D"),
+                start_time=pd.Timestamp("2021-03-02 00:00:00"),
+                end_time=pd.Timestamp("2021-04-20 00:00:00"),
                 confidence=mock.ANY,
                 ts_name="ts3",
             )

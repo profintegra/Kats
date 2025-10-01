@@ -11,7 +11,8 @@ from typing import Any, cast, Dict, List, Optional, Tuple, Union
 import pandas as pd
 
 try:
-    from fbprophet import Prophet
+    # Prophet is an optional dependency for kats.
+    from prophet import Prophet
 
     _no_prophet = False
 except ImportError:
@@ -135,7 +136,7 @@ class ProphetParams(Params):
         extra_regressors: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         if _no_prophet:
-            raise RuntimeError("requires fbprophet to be installed")
+            raise RuntimeError("requires prophet to be installed")
         super().__init__()
         self.growth = growth
         self.changepoints = changepoints
@@ -249,7 +250,7 @@ class ProphetModel(Model[ProphetParams]):
     def __init__(self, data: TimeSeriesData, params: ProphetParams) -> None:
         super().__init__(data, params)
         if _no_prophet:
-            raise RuntimeError("requires fbprophet to be installed")
+            raise RuntimeError("requires prophet to be installed")
         self.data: TimeSeriesData = data
         self._data_params_validation()
 
@@ -309,9 +310,18 @@ class ProphetModel(Model[ProphetParams]):
     ) -> pd.DataFrame:
         non_future = future is None
         if future is None:
+            # Prophet removes nulls from the data. If we encounter nulls in the
+            # end of the time series, Prophet won't have that in its history and
+            # we won't generate enough steps.
+            count_trailing_nulls = 0
+            nulls = self.data.value.isnull()
+            while nulls.iloc[-1 - count_trailing_nulls]:
+                count_trailing_nulls += 1
             # pyre-fixme
             future = self.model.make_future_dataframe(
-                periods=steps, freq=self.freq, include_history=self.include_history
+                periods=steps + count_trailing_nulls,
+                freq=self.freq,
+                include_history=self.include_history,
             )
         if "ds" not in future.columns:
             msg = "`future` should be specified and `future` should contain a column named 'ds' representing the timestamps."
@@ -346,7 +356,9 @@ class ProphetModel(Model[ProphetParams]):
             else:
                 future = future[future.ds > self.data.time.max()]
 
-            reqd_length = steps + int(len(self.data) * self.include_history)
+            reqd_length = steps + int(
+                self.data.value.notnull().sum() * self.include_history
+            )
             if len(future) < reqd_length:
                 msg = f"Input `future` is not long enough to generate forecasts of {steps} steps."
                 _error_msg(msg)
@@ -503,7 +515,10 @@ class ProphetModel(Model[ProphetParams]):
 
 # From now on, the main logics are from github PR https://github.com/facebook/prophet/pull/2186 with some modifications.
 def predict_uncertainty(
-    prophet_model: Prophet, df: pd.DataFrame, vectorized: bool
+    prophet_model: Prophet,
+    df: pd.DataFrame,
+    vectorized: bool,
+    confidence_band_margin: Optional[float] = None,
 ) -> pd.DataFrame:
     """Prediction intervals for yhat and trend.
 
@@ -511,6 +526,7 @@ def predict_uncertainty(
         prophet_model: a trained prophet object.
         df: a `pd.dataframe` to generate uncertainty for.
         vectorized: a boolean for whether to use a vectorized method for generating future draws.
+        confidence_band_margin: minimum margin of the upper and lower bounds, applied to the data scale.
 
     Returns
         a `pd.Dataframe` for uncertainty intervals.
@@ -519,22 +535,30 @@ def predict_uncertainty(
 
     lower_p = 100 * (1.0 - prophet_model.interval_width) / 2
     upper_p = 100 * (1.0 + prophet_model.interval_width) / 2
+    half_margin = (
+        prophet_model.y_scale * confidence_band_margin / 2.0
+        if confidence_band_margin
+        else 0.0
+    )
 
     series = {}
 
     for key in ["yhat", "trend"]:
-        series["{}_lower".format(key)] = prophet_model.percentile(
-            sim_values[key], lower_p, axis=0
+        series["{}_lower".format(key)] = (
+            prophet_model.percentile(sim_values[key], lower_p, axis=0) - half_margin
         )
-        series["{}_upper".format(key)] = prophet_model.percentile(
-            sim_values[key], upper_p, axis=0
+        series["{}_upper".format(key)] = (
+            prophet_model.percentile(sim_values[key], upper_p, axis=0) + half_margin
         )
 
     return pd.DataFrame(series)
 
 
 def _sample_predictive_trend_vectorized(
-    prophet_model: Prophet, df: pd.DataFrame, n_samples: int, iteration: int = 0
+    prophet_model: Prophet,
+    df: pd.DataFrame,
+    n_samples: int,
+    iteration: int = 0,
 ) -> npt.NDArray:
     """Sample draws of the future trend values. Vectorized version of sample_predictive_trend().
 
@@ -600,7 +624,6 @@ def _sample_trend_uncertainty(
         # there is no trend uncertainty in historic trends
         uncertainties = np.zeros((n_samples, len(df)))
     else:
-
         future_df = df.loc[df["t"] > 1]
         n_length = len(future_df)
         hist_len = len(df) - n_length
@@ -670,11 +693,13 @@ def predict(
     prophet_model: Prophet,
     df: Optional[pd.DataFrame] = None,
     vectorized: bool = False,
+    confidence_band_margin: Optional[float] = None,
 ) -> pd.DataFrame:
     """Predict using the prophet model.
     Args:
         df: a `pd.DataFrame` object with dates and necessary information for predictions.
         vectorized: a boolean for whether to use a vectorized method to compute uncertainty intervals. Default is False.
+        confidence_band_margin: minimum margin of the upper and lower bounds, applied to the data scale.
 
     Returns:
         A `pd.DataFrame` object for the forecasts.
@@ -694,8 +719,9 @@ def predict(
     seasonal_components = prophet_model.predict_seasonal_components(df)
 
     if prophet_model.uncertainty_samples:
-        intervals = predict_uncertainty(prophet_model, df, vectorized)
-
+        intervals = predict_uncertainty(
+            prophet_model, df, vectorized, confidence_band_margin
+        )
     else:
         intervals = None
 
@@ -721,7 +747,7 @@ def sample_model_vectorized(
     s_a: npt.NDArray,
     s_m: npt.NDArray,
     n_samples: int,
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, npt.NDArray]:
     """Simulate observations from the extrapolated generative model. Vectorized version of sample_model().
 
     Returns:
@@ -730,6 +756,7 @@ def sample_model_vectorized(
     # Get the seasonality and regressor components, which are deterministic per iteration
     beta = prophet_model.params["beta"][iteration]
     Xb_a = (
+        # pyre-fixme[16]: `ndarray` has no attribute `values`.
         np.matmul(seasonal_features.values, beta * s_a.values) * prophet_model.y_scale
     )
     Xb_m = np.matmul(seasonal_features.values, beta * s_m.values)
@@ -746,7 +773,7 @@ def sample_model_vectorized(
 
 def sample_posterior_predictive(
     prophet_model: Prophet, df: pd.DataFrame, vectorized: bool
-) -> Dict[str, np.ndarray]:
+) -> Dict[str, npt.NDArray]:
     """Generate posterior samples of a trained Prophet model.
 
     Args:
@@ -794,9 +821,13 @@ def sample_posterior_predictive(
             ]
             for key in sim_values:
                 for sim in sims:
+                    # pyre-fixme[16]: `ndarray` has no attribute `values`.
                     sim_values[key].append(sim[key].values)
     for k, v in sim_values.items():
+        # pyre-fixme[6]: For 2nd argument expected `List[Any]` but got `ndarray[Any,
+        #  dtype[Any]]`.
         sim_values[k] = np.row_stack(v)
+    # pyre-fixme[24]: Generic type `np.ndarray` expects 2 type parameters.
     return cast(Dict[str, np.ndarray], sim_values)
 
 
@@ -805,7 +836,7 @@ def _make_historical_mat_time(
     changepoints_t: npt.NDArray,
     n_row: int,
     single_diff: float,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[npt.NDArray, npt.NDArray]:
     """
     Creates a matrix of slope-deltas where these changes occured in training data according to the trained prophet obj
     """
@@ -889,7 +920,10 @@ def _piecewise_linear_vectorize(
 
 
 def sample_linear_predictive_trend_vectorize(
-    prophet_model: Prophet, df: pd.DataFrame, sample_size: int, iteration: int
+    prophet_model: Prophet,
+    df: pd.DataFrame,
+    sample_size: int,
+    iteration: int,
 ) -> npt.NDArray:
     """
     Vectorize funtion for generating trend sample when `growth` = 'linear'.
@@ -906,6 +940,7 @@ def sample_linear_predictive_trend_vectorize(
     m = prophet_model.params["m"][iteration]
     deltas = prophet_model.params["delta"][iteration]
     changepoints_t = prophet_model.changepoints_t
+    # pyre-fixme[6]: For 1st argument expected `Sequence[Union[_SupportsArray[dtype[A...
     changepoint_ts = np.row_stack([changepoints_t] * sample_size)
 
     deltas = np.row_stack([deltas] * sample_size)
@@ -924,7 +959,6 @@ def sample_linear_predictive_trend_vectorize(
         max_possion_num = 0
 
     if max_possion_num > 0:
-
         # sample change points
         changepoint_ts_new = 1 + np.random.rand(sample_size, max_possion_num) * (T - 1)
         # pyre-fixme[16]: `int` has no attribute `sort`.

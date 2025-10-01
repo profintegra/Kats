@@ -40,9 +40,10 @@ class HarmonicRegressionParams(Params):
             raise ValueError(msg)
 
 
+# pyre-fixme[24]: Generic type `np.ndarray` expects 2 type parameters.
 class HarmonicRegressionModel(Model[Optional[np.ndarray]]):
-    params: Optional[np.ndarray] = None
-    harms: Optional[np.ndarray] = None
+    params: Optional[npt.NDArray] = None
+    harms: Optional[npt.NDArray] = None
 
     def __init__(self, data: TimeSeriesData, params: HarmonicRegressionParams) -> None:
         super().__init__(data, params)
@@ -163,7 +164,7 @@ class HarmonicRegressionModel(Model[Optional[np.ndarray]]):
     @staticmethod
     def make_harm_eval(
         harmonics: npt.NDArray,
-    ) -> Callable[..., np.ndarray]:
+    ) -> Callable[..., npt.NDArray]:
         """Defines evaluation function for the optimizer
         Parameters
         ----------
@@ -182,7 +183,7 @@ class HarmonicRegressionModel(Model[Optional[np.ndarray]]):
 
     def fit_harmonics(
         self, period: float, fourier_order: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
         """Performs harmonic regression.
         Harmonic regression fits cosines
         amplitude*cos(freq*t + phase). Using double angle identity formulas,

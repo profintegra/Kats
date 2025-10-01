@@ -16,6 +16,7 @@ import pandas as pd
 import scipy.stats as stats
 from kats.consts import (
     DataError,
+    DataInsufficientError,
     DataIrregularGranularityError,
     InternalError,
     IRREGULAR_GRANULARITY_ERROR,
@@ -101,7 +102,6 @@ class StatSigDetectorModel(DetectorModel):
         anomaly_scores_only: bool = False,
         min_perc_change: float = 0.0,
     ) -> None:
-
         if serialized_model:
             model_dict = json.loads(serialized_model)
             self.n_test: int = model_dict["n_test"]
@@ -676,13 +676,13 @@ class StatSigDetectorModel(DetectorModel):
             elif historical_data and len(historical_data) >= 3:
                 frequency = historical_data.infer_freq_robust()
             else:
-                raise InternalError(
-                    "Not able to infer freqency of the time series. "
+                raise DataInsufficientError(
+                    "Not able to infer frequency of the time series. "
                     "Please use longer time series data or pass the time_unit parameter to the initializer."
                 )
 
             # Timedelta string
-            self.time_unit = f"{frequency.total_seconds()}S"
+            self.time_unit = f"{frequency.total_seconds()}s"
 
         # validate the time_unit
         try:
@@ -999,7 +999,6 @@ class MultiStatSigDetectorModel(StatSigDetectorModel):
         use_corrected_scores: bool = False,
         min_perc_change: float = 0.0,
     ) -> None:
-
         StatSigDetectorModel.__init__(
             self,
             n_control=n_control,
@@ -1180,7 +1179,6 @@ class MultiStatSigDetectorModel(StatSigDetectorModel):
         return self.response.get_last_n(self.last_N)
 
     def _init_response(self, data: TimeSeriesData) -> None:
-
         zeros_df = pd.DataFrame(
             {
                 **{"time": data.time},

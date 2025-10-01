@@ -6,14 +6,14 @@
 # pyre-strict
 
 """
- Bayesian estimation of Vector Autoregressive Model using
- Minnesota prior on the coefficient matrix. This version is
- useful for regularization when they are too many coefficients
- to be estimated.
+Bayesian estimation of Vector Autoregressive Model using
+Minnesota prior on the coefficient matrix. This version is
+useful for regularization when they are too many coefficients
+to be estimated.
 
- Implementation inspired by the following two articles/papers:
-    https://www.mathworks.com/help/econ/normalbvarm.html#mw_4a1ab118-9ef3-4380-8c5a-12b848254117
-    http://apps.eui.eu/Personal/Canova/Articles/ch10.pdf (page 5)
+Implementation inspired by the following two articles/papers:
+   https://www.mathworks.com/help/econ/normalbvarm.html#mw_4a1ab118-9ef3-4380-8c5a-12b848254117
+   http://apps.eui.eu/Personal/Canova/Articles/ch10.pdf (page 5)
 """
 
 import logging
@@ -81,9 +81,9 @@ class BayesianVAR(m.Model[BayesianVARParams]):
         params: the parameter class defined with `BayesianVARParams`
     """
 
-    sigma_ols: Optional[np.ndarray] = None
-    v_posterior: Optional[np.ndarray] = None
-    mu_posterior: Optional[np.ndarray] = None
+    sigma_ols: Optional[npt.NDArray] = None
+    v_posterior: Optional[npt.NDArray] = None
+    mu_posterior: Optional[npt.NDArray] = None
     resid: Optional[pd.DataFrame] = None
     forecast: Optional[Dict[str, TimeSeriesData]] = None
     forecast_max_time: Optional[datetime] = None
@@ -102,7 +102,7 @@ class BayesianVAR(m.Model[BayesianVARParams]):
     N: int
     num_mu_coefficients: int
     fitted: bool = False
-    forecast_vals: Optional[List[np.ndarray]] = None
+    forecast_vals: Optional[List[npt.NDArray]] = None
 
     def __init__(self, data: TimeSeriesData, params: BayesianVARParams) -> None:
         if data.is_univariate():
@@ -111,6 +111,7 @@ class BayesianVAR(m.Model[BayesianVARParams]):
 
         self.data = data
         self.time_freq = BayesianVAR._check_get_freq(data)
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.X, self.Y = BayesianVAR._convert_timeseries_np(data)
         assert (
             self.X.shape[1] == self.Y.shape[1]
@@ -150,7 +151,7 @@ class BayesianVAR(m.Model[BayesianVARParams]):
     @staticmethod
     def _convert_timeseries_np(
         timeseries: TimeSeriesData,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
         data_df = timeseries.to_dataframe()
         Y = data_df.drop(columns=[timeseries.time_col_name]).to_numpy().T
         X = np.expand_dims(pd.RangeIndex(0, len(timeseries)), axis=0)
@@ -201,18 +202,21 @@ class BayesianVAR(m.Model[BayesianVARParams]):
             )  # shape: m x [m * (m * p + r + 1)]
 
             z_sum_term = (
+                # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtyp...
                 Z_t.T @ inv(self.sigma_ols)
             ) @ Z_t  # shape: [m * (m * p + r + 1)] x [m * (m * p + r + 1)]
+            # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtype[Un...
             y_sum_term = (Z_t.T @ inv(self.sigma_ols)) @ self.Y[
                 :, t
             ]  # shape: [m * (m * p + r + 1)] x 1
 
             assert (
-                num_mu,
-                num_mu,
-            ) == z_sum_term.shape, (
-                f"Expected {(num_mu, num_mu)}, got {z_sum_term.shape}"
-            )
+                (
+                    num_mu,
+                    num_mu,
+                )
+                == z_sum_term.shape
+            ), f"Expected {(num_mu, num_mu)}, got {z_sum_term.shape}"
             assert (
                 num_mu,
             ) == y_sum_term.shape, f"Expected {(num_mu,)}, got {y_sum_term.shape}"
@@ -258,11 +262,12 @@ class BayesianVAR(m.Model[BayesianVARParams]):
         Z_t = block_diag(*([z] * self.m))
 
         assert (
-            self.m,
-            self.num_mu_coefficients,
-        ) == Z_t.shape, (
-            f"Expected {(self.m, self.num_mu_coefficients)}, got {Z_t.shape}"
-        )
+            (
+                self.m,
+                self.num_mu_coefficients,
+            )
+            == Z_t.shape
+        ), f"Expected {(self.m, self.num_mu_coefficients)}, got {Z_t.shape}"
 
         return Z_t  # shape: m x [m * (m * p + m + 1)]
 
@@ -315,6 +320,7 @@ class BayesianVAR(m.Model[BayesianVARParams]):
             return self.phi_0 * self.phi_2
         else:  # endogenous variable j
             assert lag is not None
+            # pyre-fixme[7]: Expected `float` but got `ndarray[Any, dtype[Any]]`.
             return self.phi_0 * (self.phi_1 / h(lag)) * (variance[j] / variance[i])
 
     def _construct_v_prior(self) -> npt.NDArray:
@@ -440,7 +446,7 @@ class BayesianVAR(m.Model[BayesianVARParams]):
                     [Y_curr, look_ahead_pred[:, np.newaxis]], axis=1
                 )
 
-            times += ahead_times
+            times += list(ahead_times)
 
         forecast_length = len(times)
 

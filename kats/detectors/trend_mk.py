@@ -221,7 +221,7 @@ class MKDetector(Detector):
 
         return smoothed_ts
 
-    def _preprocessing(self, ts: pd.DataFrame) -> Tuple[np.ndarray, int]:
+    def _preprocessing(self, ts: pd.DataFrame) -> Tuple[npt.NDArray, int]:
         """Check and convert the dataframe ts to an numpy array.
 
         Args:
@@ -249,7 +249,7 @@ class MKDetector(Detector):
 
         return x, c
 
-    def _drop_missing_values(self, x: npt.NDArray) -> Tuple[np.ndarray, int]:
+    def _drop_missing_values(self, x: npt.NDArray) -> Tuple[npt.NDArray, int]:
         """Drop the missing values in x."""
 
         if x.ndim == 1:  # univariate case with 1-dim array/ shape(n,)
@@ -400,6 +400,7 @@ class MKDetector(Detector):
 
         ts = self.data.to_dataframe().set_index("time")
         ts = ts.dropna(axis=1)
+        # pyre-fixme[16]: `Index` has no attribute `inferred_freq`.
         ts.index = pd.DatetimeIndex(ts.index.values, freq=ts.index.inferred_freq)
         self.ts = ts
 
@@ -442,8 +443,8 @@ class MKDetector(Detector):
             ts_deseas = self._remove_seasonality(ts, freq=self.freq)
             ts_smoothed = self._smoothing(ts_deseas)  # smoothing
             # append MK statistics to MK_statistics dataframe
-            MK_statistics = MK_statistics.append(
-                self.runDetector(ts=ts_smoothed),
+            MK_statistics = pd.concat(
+                [MK_statistics, pd.DataFrame([self.runDetector(ts=ts_smoothed)])],
                 ignore_index=True,
             )
 
@@ -458,8 +459,8 @@ class MKDetector(Detector):
                 # look back window_size day for trend detection
                 ts_tmp = ts_smoothed.loc[:t, :]
                 # append MK statistics to MK_statistics dataframe
-                MK_statistics = MK_statistics.append(
-                    self.runDetector(ts=ts_tmp),
+                MK_statistics = pd.concat(
+                    [MK_statistics, pd.DataFrame([self.runDetector(ts=ts_tmp)])],
                     ignore_index=True,
                 )
 
@@ -483,6 +484,8 @@ class MKDetector(Detector):
             )
 
         if self.multivariate:
+            # pyre-fixme[6]: For 1st argument expected `Dict[Any, Any]` but got
+            #  `List[Any]`.
             trend_df = pd.DataFrame.from_dict(list(MK_statistics.trend_direction))
             overall_trend = trend_df["overall"]
 
@@ -627,10 +630,12 @@ class MKDetector(Detector):
         assert MK_statistics is not None
 
         # obtain the Tau for all metrics at all time points
+        # pyre-fixme[6]: For 1st argument expected `Dict[Any, Any]` but got `List[Any]`.
         Tau_df = pd.DataFrame.from_dict(list(MK_statistics.Tau))
         Tau_df["ds"] = MK_statistics.ds
         Tau_df = Tau_df.drop(["overall"], axis=1)  # remove overall score
 
+        # pyre-fixme[6]: For 1st argument expected `Dict[Any, Any]` but got `List[Any]`.
         trend_df = pd.DataFrame.from_dict(list(MK_statistics.trend_direction))
         trend_df["ds"] = MK_statistics.ds
         trend_df = trend_df.drop(["overall"], axis=1)  # remove overall trend

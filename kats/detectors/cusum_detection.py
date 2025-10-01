@@ -165,9 +165,9 @@ class CUSUMChangePoint(TimeSeriesChangePoint):
         confidence: float,
         direction: str,
         cp_index: int,
-        mu0: Union[float, np.ndarray],
-        mu1: Union[float, np.ndarray],
-        delta: Union[float, np.ndarray],
+        mu0: Union[float, npt.NDArray],
+        mu1: Union[float, npt.NDArray],
+        delta: Union[float, npt.NDArray],
         llr_int: float,
         llr: float,
         regression_detected: bool,
@@ -197,15 +197,15 @@ class CUSUMChangePoint(TimeSeriesChangePoint):
         return self._cp_index
 
     @property
-    def mu0(self) -> Union[float, np.ndarray]:
+    def mu0(self) -> Union[float, npt.NDArray]:
         return self._mu0
 
     @property
-    def mu1(self) -> Union[float, np.ndarray]:
+    def mu1(self) -> Union[float, npt.NDArray]:
         return self._mu1
 
     @property
-    def delta(self) -> Union[float, np.ndarray]:
+    def delta(self) -> Union[float, npt.NDArray]:
         return self._delta
 
     @property
@@ -508,6 +508,7 @@ class CUSUMDetector(Detector):
         """
         Calculate the magnitude of a time series.
         """
+        # pyre-fixme[28]: Unexpected keyword argument `interpolation`.
         magnitude = np.quantile(ts, self.magnitude_quantile, interpolation="nearest")
         return magnitude
 
@@ -780,7 +781,6 @@ class MultiCUSUMDetector(CUSUMDetector):
         # multivariate detection. We keep using change_direction = "increase"
         # here to be consistent with the univariate detector.
         for change_direction in ["increase"]:
-
             change_meta = self._get_change_point(
                 ts,
                 max_iter=max_iter,
@@ -816,23 +816,25 @@ class MultiCUSUMDetector(CUSUMDetector):
         sigma0: Optional[float],
         sigma1: Optional[float],
     ) -> float:
-
         mu_tilde = np.mean(ts, axis=0)
         sigma_pooled = np.cov(ts, rowvar=False)
-        llr = -2 * (
-            self._log_llr_multi(
-                ts[: (changepoint + 1)],
-                mu_tilde,
-                sigma_pooled,
-                mu0,
-                sigma0,  # pyre-fixme
-            )
-            - self._log_llr_multi(
-                ts[(changepoint + 1) :],
-                mu_tilde,
-                sigma_pooled,
-                mu1,
-                sigma1,  # pyre-fixme
+        llr = (
+            -2
+            * (
+                self._log_llr_multi(
+                    ts[: (changepoint + 1)],
+                    mu_tilde,
+                    sigma_pooled,
+                    mu0,
+                    sigma0,  # pyre-fixme
+                )
+                - self._log_llr_multi(
+                    ts[(changepoint + 1) :],
+                    mu_tilde,
+                    sigma_pooled,
+                    mu1,
+                    sigma1,  # pyre-fixme
+                )
             )
         )
         return llr
@@ -840,10 +842,10 @@ class MultiCUSUMDetector(CUSUMDetector):
     def _log_llr_multi(
         self,
         x: npt.NDArray,
-        mu0: Union[float, np.ndarray],
-        sigma0: Union[float, np.ndarray],
-        mu1: Union[float, np.ndarray],
-        sigma1: Union[float, np.ndarray],
+        mu0: Union[float, npt.NDArray],
+        sigma0: Union[float, npt.NDArray],
+        mu1: Union[float, npt.NDArray],
+        sigma1: Union[float, npt.NDArray],
     ) -> float:
         try:
             sigma0_inverse = np.linalg.inv(sigma0)
@@ -855,6 +857,7 @@ class MultiCUSUMDetector(CUSUMDetector):
             _log.error(msg)
             raise ValueError(msg)
 
+        # pyre-fixme[6]: For 1st argument expected `Union[Sequence[Sequence[Sequence[...
         return len(x) / 2 * (log_det_sigma0 - log_det_sigma1) + np.sum(
             -np.matmul(np.matmul(x[i] - mu1, sigma1_inverse), (x[i] - mu1).T)
             + np.matmul(np.matmul(x[i] - mu0, sigma0_inverse), (x[i] - mu0).T)
@@ -868,7 +871,6 @@ class MultiCUSUMDetector(CUSUMDetector):
         start_point: int,
         change_direction: str = "increase",
     ) -> CUSUMChangePointVal:
-
         # locate the change point using cusum method
         changepoint_func = np.argmin
         n = 0
@@ -945,7 +947,11 @@ class MultiCUSUMDetector(CUSUMDetector):
             llr_int=llr_int,
             p_value_int=pval_int,
             delta_int=delta_int,
+            # pyre-fixme[6]: For 10th argument expected `Optional[float]` but got
+            #  `ndarray[Any, dtype[Any]]`.
             sigma0=sigma0,
+            # pyre-fixme[6]: For 11th argument expected `Optional[float]` but got
+            #  `ndarray[Any, dtype[Any]]`.
             sigma1=sigma1,
         )
 

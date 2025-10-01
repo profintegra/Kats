@@ -5,8 +5,7 @@
 
 # pyre-strict
 
-"""This module contains the class TemporalHierarchicalModel class.
-"""
+"""This module contains the class TemporalHierarchicalModel class."""
 
 import logging
 from math import gcd
@@ -64,11 +63,10 @@ class TemporalHierarchicalModel:
 
     # pyre-fixme[24]: Generic type `Model` expects 1 type parameter.
     models: Optional[Dict[str, Model]] = None
-    residuals: Optional[Dict[int, np.ndarray]] = None
-    res_matrix: Optional[np.ndarray] = None
+    residuals: Optional[Dict[int, npt.NDArray]] = None
+    res_matrix: Optional[npt.NDArray] = None
 
     def __init__(self, data: TimeSeriesData, baseModels: List[BaseTHModel]) -> None:
-
         if not data.is_univariate():
             msg = f"Only univariate time series supported, but got {type(data.value)}."
             raise _log_error(msg)
@@ -198,7 +196,7 @@ class TemporalHierarchicalModel:
                     return merge[col].values - merge["fcst"].values
             raise ValueError("Couldn't find residual or forecast values in model")
 
-    def _get_all_residuals(self) -> Dict[int, np.ndarray]:
+    def _get_all_residuals(self) -> Dict[int, npt.NDArray]:
         """
         Calculate residuals for all base models.
 
@@ -308,7 +306,7 @@ class TemporalHierarchicalModel:
             raise _log_error(f"{method} is invalid for get_W() method.")
 
     # pyre-fixme[2]: Parameter must be annotated.
-    def _predict_origin(self, steps: int, method="struc") -> Dict[int, np.ndarray]:
+    def _predict_origin(self, steps: int, method="struc") -> Dict[int, npt.NDArray]:
         """
         Generate original forecasts from each base model (without time index).
 
@@ -370,7 +368,7 @@ class TemporalHierarchicalModel:
         method="struc",
         origin_fcst: bool = False,
         fcst_levels: Optional[List[int]] = None,
-    ) -> Dict[str, Dict[int, np.ndarray]]:
+    ) -> Dict[str, Dict[int, npt.NDArray]]:
         """Generate forecasts for each level (without time index).
 
         Args:

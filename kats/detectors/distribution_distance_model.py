@@ -34,7 +34,7 @@ from scipy.spatial.distance import _METRICS_NAMES as SUPPORTED_DISTANCE_METRICS
 _log: logging.Logger = logging.getLogger("distribution_distance_model")
 
 
-def _merge_percentile(l1: npt.NDArray) -> Tuple[np.ndarray, np.ndarray]:
+def _merge_percentile(l1: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
     """
     handle equal percentile:
     [-2.5, -1.3, -1.3, 1.2, 1.2] -> [-2.5, -1.3, 1.2] with prob [0.2, 0.4, 0.4]
@@ -53,7 +53,7 @@ def _merge_percentile(l1: npt.NDArray) -> Tuple[np.ndarray, np.ndarray]:
 
 def _percentile_to_prob(
     l1: npt.NDArray, l2: npt.NDArray
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[npt.NDArray, npt.NDArray]:
     """
     convert decile to probability distribution: ([3,4,5,6,7], [1,2,3,4,5])
     to ([0.2, 0.2, 0.2, 0.2, 0.2], [0.6, 0.2, 0.2, 0, 0])
@@ -87,7 +87,6 @@ def _percentile_to_prob(
 
         # if all values in l2 are lager than l1
         if n_idx_at2 == 0:
-
             # use distance from l2[0] to l2[j] as base
             j = 1
             while j < len(l2_merge) and l2_merge[j] == l2_merge[0]:
@@ -108,6 +107,8 @@ def _percentile_to_prob(
             n_distance_1_2 = l1_merge[i] - l2_merge[n_idx_at2 - 1]  # positive number
             n_start = l2_perc[n_idx_at2 - 1]
 
+        # pyre-fixme[58]: `+` is not supported for operand types `Union[ndarray[Any,
+        #  dtype[Any]], int]` and `float`.
         l_res_2[i] = n_start + n_perc * n_distance_1_2 / n_base_distance
         if l_res_2[i] < 0:
             l_res_2[i] = 0
@@ -259,6 +260,7 @@ class DistributionDistanceModel(DetectorModel):
 
         total_data_df_group0 = total_data_df.rolling(
             window=str(self.window_size_sec) + "s",
+            # TODO(PythonSciMigration): migrate closed="both" -> inclusive="both"
             closed="both",
         ).agg(
             lambda rows: (
@@ -285,7 +287,7 @@ class DistributionDistanceModel(DetectorModel):
                     total_data_df_group0.loc[start_time_index:],
                     total_data_df.loc[start_time_index:],
                 ],
-                1,
+                axis=1,
                 copy=False,
             )
             scores = total_df.apply(self._js_div_func, axis=1)

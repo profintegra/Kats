@@ -80,7 +80,7 @@ class GMDataLoader:
         self,
         # pyre-fixme[2]: Parameter annotation cannot contain `Any`.
         dataset: Union[Dict[Any, TimeSeriesData], List[TimeSeriesData]],
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
         if len(dataset) < 1:
             msg = "Input dataset should be non-empty."
             logging.error(msg)
@@ -207,7 +207,6 @@ class GMBatch:
         ] = None,
         mode: str = "train",
     ) -> None:
-
         if not isinstance(params, GMParam):
             msg = f"params should be a GMParam object but receives {type(params)}."
             logging.error(msg)
@@ -280,7 +279,9 @@ class GMBatch:
         self.indices = train_indices + valid_indices
 
         if valid or (not self.training):
+            # pyre-fixme[6]: For 1st argument expected `Sequence[Union[_SupportsArray...
             x = np.column_stack([train_x, valid_x])
+            # pyre-fixme[6]: For 1st argument expected `Sequence[Union[_SupportsArray...
             time = np.column_stack([train_time, valid_time])
         else:
             x = train_x
@@ -446,11 +447,11 @@ class GMBatch:
         reduced_length: int,
         reduced_valid_length: int,
     ) -> Tuple[
-        np.ndarray,
-        np.ndarray,
-        np.ndarray,
-        Optional[np.ndarray],
-        Optional[np.ndarray],
+        npt.NDArray,
+        npt.NDArray,
+        npt.NDArray,
+        Optional[npt.NDArray],
+        Optional[npt.NDArray],
     ]:
         """
 
@@ -503,12 +504,14 @@ class GMBatch:
             min_val = (
                 train_ts.min
                 if valid is None
+                # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtyp...
                 else np.min([train_ts.min, valid[idx].min])
             )
             if min_val <= 0:
                 max_val = (
                     train_ts.max
                     if valid is None
+                    # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[...
                     else np.max([train_ts.max, valid[idx].max])
                 )
                 if min_val == max_val:  # receives a constant TS

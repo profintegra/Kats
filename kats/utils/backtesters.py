@@ -49,6 +49,7 @@ except ImportError:  # pragma: no cover
 
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import _log_error, Params, TimeSeriesData
 from kats.metrics.metrics import core_metric, CoreMetric
@@ -111,7 +112,7 @@ def _check_max_core(max_core: Optional[int]) -> int:
 
 
 def _get_scorer(
-    scorer: Union[str, List[str], CoreMetric]
+    scorer: Union[str, List[str], CoreMetric],
 ) -> Optional[Callable[[pd.DataFrame], Dict[str, float]]]:
     """Helper function for validating `scorer`."""
 
@@ -205,7 +206,6 @@ class GenericBacktester(ABC):
         max_core: Optional[int] = None,
         error_score: float = np.nan,
     ) -> None:
-
         self.datapartition: DataPartitionBase = datapartition
         # pyre-fixme
         self.scorer: Callable[[pd.DataFrame], Dict[str, float]] = _get_scorer(scorer)
@@ -254,7 +254,6 @@ class GenericBacktester(ABC):
     def _get_fold_errors(
         self, raw_fold_errors: List[Optional[Dict[str, float]]]
     ) -> Tuple[List[str], List[Dict[str, float]]]:
-
         valid_fold_errors = [t for t in raw_fold_errors if t is not None]
         # get error metric names
         if not valid_fold_errors:
@@ -274,7 +273,6 @@ class GenericBacktester(ABC):
     def _summarize(
         self, results: List[Tuple[pd.DataFrame, Dict[str, float]]]
     ) -> BacktesterResult:
-
         if not results:
             _log_error("Fail to get evaluation results!")
 
@@ -401,11 +399,11 @@ class BackTesterParent(ABC):
     params: Params
     multi: bool
     offset: int
-    results: List[Tuple[np.ndarray, np.ndarray, "Model[Params]", np.ndarray]]
+    results: List[Tuple[npt.NDArray, npt.NDArray, "Model[Params]", npt.NDArray]]
     errors: Dict[str, float]
     size: int
     freq: Optional[str]
-    raw_errors: List[np.ndarray]
+    raw_errors: List[npt.NDArray]
 
     def __init__(
         self,
@@ -431,6 +429,7 @@ class BackTesterParent(ABC):
         self.multi = multi
         self.offset = offset
 
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.results = []
         # Handling frequency
         if "freq" in kwargs:
@@ -439,6 +438,7 @@ class BackTesterParent(ABC):
             logging.info("Inferring frequency")
             self.freq = pd.infer_freq(self.data.time)
 
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.raw_errors = []
 
         methods = []
@@ -518,7 +518,7 @@ class BackTesterParent(ABC):
         self,
         training_data_indices: Tuple[int, int],
         testing_data_indices: Tuple[int, int],
-    ) -> Optional[Tuple[np.ndarray, np.ndarray, "Model[Params]", np.ndarray]]:
+    ) -> Optional[Tuple[npt.NDArray, npt.NDArray, "Model[Params]", npt.NDArray]]:
         """
         Trains model, evaluates it, and stores results in results list.
         """
@@ -1227,10 +1227,10 @@ class CrossValidation:
     """
 
     size: int
-    results: List[Tuple[np.ndarray, np.ndarray, "Model[Params]", np.ndarray]]
+    results: List[Tuple[npt.NDArray, npt.NDArray, "Model[Params]", npt.NDArray]]
     num_folds: int
     errors: Dict[str, float]
-    raw_errors: List[np.ndarray]
+    raw_errors: List[npt.NDArray]
     _backtester: BackTesterParent
 
     def __init__(
@@ -1273,8 +1273,10 @@ class CrossValidation:
             logging.error("self.size: {0}".format(self.size))
             raise ValueError("Passing an empty time series")
 
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.results = []
         self.errors = {}
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.raw_errors = []
 
         if not constant_train_size:

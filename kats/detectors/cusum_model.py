@@ -395,6 +395,8 @@ class CUSUMDetectorModel(DetectorModel):
                 self.pre_mean = vec_data_row.value[:scan_start_index].mean()
                 self.pre_std = vec_data_row.value[:scan_start_index].std(ddof=0)
 
+            # pyre-fixme[6]: For 1st argument expected `float` but got `Union[float,
+            #  Series]`.
             if self._if_normal(cur_mean, change_directions, delta_std_ratio):
                 self.number_of_normal_scan += 1
                 if self.number_of_normal_scan >= NORMAL_TOLERENCE:
@@ -482,6 +484,8 @@ class CUSUMDetectorModel(DetectorModel):
                 self.pre_mean = historical_data.value[:scan_start_index].mean()
                 self.pre_std = historical_data.value[:scan_start_index].std(ddof=0)
 
+            # pyre-fixme[6]: For 1st argument expected `float` but got `Union[float,
+            #  Series]`.
             if self._if_normal(cur_mean, change_directions, delta_std_ratio):
                 self.number_of_normal_scan += 1
                 if self.number_of_normal_scan >= NORMAL_TOLERENCE:
@@ -785,6 +789,8 @@ class CUSUMDetectorModel(DetectorModel):
             ss_detect = VectorizedCUSUMDetectorModel(
                 scan_window=self.scan_window,
                 historical_window=self.historical_window,
+                # pyre-fixme[6]: For 3rd argument expected `Optional[int]` but got
+                #  `float`.
                 step_window=step_window.total_seconds(),
                 threshold=threshold,
                 delta_std_ratio=delta_std_ratio,
@@ -852,6 +858,7 @@ class CUSUMDetectorModel(DetectorModel):
                 predict_results.score,
                 predict_results.absolute_change,
                 historical_data.value.name,
+                freq_historical=frequency,
             )
             score_tsd.extend(
                 score_tsd_vec,
@@ -860,7 +867,6 @@ class CUSUMDetectorModel(DetectorModel):
             change_tsd.extend(change_tsd_vec, validate=False)
 
         else:
-
             for start_time in pd.date_range(
                 anomaly_start_time,
                 min(
@@ -973,7 +979,7 @@ class CUSUMDetectorModel(DetectorModel):
 
         multi_ts_val_df = pd.DataFrame(multi_ts_val).T
 
-        multi_ts_df = pd.concat([multi_ts_time_df, multi_ts_val_df], 1)
+        multi_ts_df = pd.concat([multi_ts_time_df, multi_ts_val_df], axis=1)
         df_names = ["val_" + str(i) for i in range(multi_ts_val_df.shape[1])]
         multi_ts_df.columns = ["time"] + df_names
 
@@ -984,16 +990,28 @@ class CUSUMDetectorModel(DetectorModel):
         scores: TimeSeriesData,
         magnitude_ts: TimeSeriesData,
         name: str,
+        freq_historical: Optional[pd.Timedelta] = None,
     ) -> Tuple[TimeSeriesData, TimeSeriesData]:
         anom_scores_val_array = np.asarray(scores.value)
         anom_mag_val_array = np.asarray(magnitude_ts.value)
-        freq = scores.time[1] - scores.time[0]
-        time_need = pd.date_range(
-            start=scores.time.iloc[0],
-            end=None,
-            periods=anom_scores_val_array.shape[0] * anom_scores_val_array.shape[1],
-            freq=freq,
-        )
+
+        if len(scores.time) == 0:
+            # empty time range
+            time_need = pd.date_range(start=0, end=0, periods=0)
+        else:
+            freq = freq_historical
+            if len(scores.time) > 1:
+                freq = scores.time[1] - scores.time[0]
+            elif freq == None:
+                assert ValueError(
+                    "CUSUM prediction error, get not enough data to infer frequency"
+                )
+            time_need = pd.date_range(
+                start=scores.time.iloc[0],
+                end=None,
+                periods=anom_scores_val_array.shape[0] * anom_scores_val_array.shape[1],
+                freq=freq,
+            )
 
         anom_scores_val_1d = pd.Series(
             anom_scores_val_array.T.reshape([-1]),

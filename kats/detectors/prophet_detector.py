@@ -10,17 +10,17 @@ This module contains code to implement the Prophet algorithm
 as a Detector Model.
 """
 
+import copy
 import logging
+import os
+import re
+import sys
 from contextlib import ExitStack
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-from fbprophet import Prophet
-from fbprophet.make_holidays import make_holidays_df
-from fbprophet.serialize import model_from_json, model_to_json
-
 from kats.consts import (
     DataError,
     DataInsufficientError,
@@ -32,8 +32,13 @@ from kats.consts import (
 from kats.detectors.detector import DetectorModel
 from kats.detectors.detector_consts import AnomalyResponse, ConfidenceBand
 from kats.models.prophet import predict
+from prophet import Prophet
+from prophet.make_holidays import make_holidays_df
+from prophet.serialize import model_from_json, model_to_json
+from pyre_extensions import ParameterSpecification
 from scipy.stats import norm
 
+P = ParameterSpecification("P")
 PROPHET_TIME_COLUMN = "ds"
 PROPHET_VALUE_COLUMN = "y"
 PROPHET_YHAT_COLUMN = "yhat"
@@ -41,9 +46,6 @@ PROPHET_YHAT_LOWER_COLUMN = "yhat_lower"
 PROPHET_YHAT_UPPER_COLUMN = "yhat_upper"
 HOLIDAY_NAMES_COLUMN_NAME = "holiday"
 HOLIDAY_DATES_COLUMN_NAME = "ds"
-import os
-import sys
-
 NOT_SUPPRESS_PROPHET_FIT_LOGS_VAR_NAME = "NOT_SUPPRESS_PROPHET_FIT_LOGS"
 
 
@@ -59,7 +61,6 @@ class SilentStdoutStderr(object):
     stdout, stderr = sys.__stdout__.fileno(), sys.__stderr__.fileno()  # type: ignore
 
     def __enter__(self) -> None:
-
         # pyre-fixme typing # type: ignore
         self.devnull = os.open(os.devnull, os.O_RDWR)
         # pyre-fixme typing
@@ -206,9 +207,8 @@ def seasonalities_to_dict(
         List[SeasonalityTypes],
         List[str],
         Dict[SeasonalityTypes, Union[bool, str]],
-    ]
+    ],
 ) -> Dict[SeasonalityTypes, Union[bool, str]]:
-
     if isinstance(seasonalities, SeasonalityTypes):
         seasonalities = {seasonalities: True}
     elif isinstance(seasonalities, list):
@@ -297,9 +297,25 @@ def get_holiday_dates(
         )
         all_holidays = pd.concat((all_holidays, country_holidays_df), sort=False)
     all_holidays = pd.to_datetime(
+        # pyre-fixme[16]: `Timestamp` has no attribute `__iter__`.
         pd.Series(list({x.date() for x in pd.to_datetime(all_holidays.ds)}))
     ).sort_values(ignore_index=True)
     return all_holidays
+
+
+def load_model_from_json(serialized_model: bytes) -> Prophet:
+    try:
+        return model_from_json(serialized_model)
+    except TypeError as e:
+        logging.error(f"Failed to load model from json: {e}")
+
+    # Bytes regular expression pattern to match time strings with 'Z'
+    pattern = rb"(\"\d+-\d+-\d+T\d+:\d+:\d+\.\d+)\w\\\""
+    # Replace 'Z' with an empty bytes string
+    model_without_timezone: bytes = re.sub(pattern, rb"\1\"", serialized_model)
+    model = model_from_json(model_without_timezone)
+    model.start = model.start.tz_localize(None)
+    return model
 
 
 class ProphetDetectorModel(DetectorModel):
@@ -347,9 +363,11 @@ class ProphetDetectorModel(DetectorModel):
         country_holidays: Optional[str] = None,
         holidays_list: Optional[Union[List[str], Dict[str, List[str]]]] = None,
         holiday_multiplier: Optional[float] = None,
+        exclude_training_ranges: Optional[List[List[Union[int, pd.Timestamp]]]] = None,
+        saturation_range: Optional[List[float]] = None,
     ) -> None:
         """
-        Initializartion of Prophet
+        Initialization of Prophet
         serialized_model: Optional[bytes] = None, json, representing data from a previously serialized model.
         score_func: Union[str, ProphetScoreFunction] = DEFAULT_SCORE_FUNCTION,
         scoring_confidence_interval: float = 0.8,
@@ -367,10 +385,15 @@ class ProphetDetectorModel(DetectorModel):
         country_holidays: Optional[str]: Country for which holidays should be added to the model.
         holidays_list:  Optional[Union[List[str], Dict[str, List[str]]]] : List of holiday dates to be added to the model. like ["2022-01-01","2022-03-31"], or dict of list if we have diffreent holidays patterns for example  {"ds":["2022-01-01","2022-03-31"], "holidays":["playoff","superbowl"]}
         holiday_multiplier: Optional[float], multiplier for holidays anomaly scores.
+        exclude_training_ranges: Optional[List[List[Union[int, pd.Timestamp]]]], define ranges to exclude from training data. Example [[1672552800, 1672567200]]
+        saturation_range: Optional[List[float]]. A saturation range (min, max). Must have length 2. If not specified, Prophet will use a linear model for its forecast. If specified, it will use a logistic growth model with the specified saturation minimum and maximum. Example: [0.0, 100.0].
         """
+        if saturation_range == []:
+            saturation_range = None
+        self._validate_saturation_range(saturation_range)
 
         if serialized_model:
-            self.model = model_from_json(serialized_model)
+            self.model = load_model_from_json(serialized_model)
         else:
             self.model = None
 
@@ -403,6 +426,10 @@ class ProphetDetectorModel(DetectorModel):
         self.holidays_list = holidays_list
         self.holiday_multiplier = holiday_multiplier
         self.holidays: Optional[pd.DataFrame] = None  # type: ignore
+        self.exclude_training_ranges: Optional[List[List[Union[int, pd.Timestamp]]]] = (
+            exclude_training_ranges
+        )
+        self.saturation_range = saturation_range
 
     def serialize(self) -> bytes:
         """Serialize the model into a json.
@@ -468,7 +495,15 @@ class ProphetDetectorModel(DetectorModel):
             historical_data.extend(data)
             total_data = historical_data
 
+        # Exclude training ranges if specified
+        if self.exclude_training_ranges is not None:
+            total_data = self._exclude_ranges(total_data, self.exclude_training_ranges)
+            if not len(total_data):
+                raise DataError("All data is excluded from training")
+
         data_df = timeseries_to_prophet_df(total_data)
+        if self.saturation_range:
+            data_df["floor"], data_df["cap"] = self.saturation_range
 
         if self.remove_outliers:
             data_df = self._remove_outliers(
@@ -506,6 +541,7 @@ class ProphetDetectorModel(DetectorModel):
 
         # No incremental training. Create a model and train from scratch
         model = Prophet(
+            growth="logistic" if self.saturation_range else "linear",
             interval_width=self.scoring_confidence_interval,
             uncertainty_samples=self.uncertainty_samples,
             daily_seasonality=self.seasonalities_to_fit[SeasonalityTypes.DAY],
@@ -548,6 +584,8 @@ class ProphetDetectorModel(DetectorModel):
             raise InternalError(msg)
 
         time_df = pd.DataFrame({PROPHET_TIME_COLUMN: data.time}, copy=False)
+        if self.saturation_range:
+            time_df["floor"], time_df["cap"] = self.saturation_range
         if self.seasonalities_to_fit.get(
             SeasonalityTypes.WEEKEND
         ) or self.seasonalities.get(SeasonalityTypes.WEEKEND):
@@ -564,7 +602,9 @@ class ProphetDetectorModel(DetectorModel):
 
         # If not using z-score, set confidence band equal to prediction
         if model.uncertainty_samples == 0:
-            confidence_band = ConfidenceBand(upper=predicted_ts, lower=predicted_ts)
+            confidence_band = ConfidenceBand(
+                upper=copy.deepcopy(predicted_ts), lower=copy.deepcopy(predicted_ts)
+            )
         else:
             confidence_band = ConfidenceBand(
                 upper=TimeSeriesData(
@@ -599,9 +639,10 @@ class ProphetDetectorModel(DetectorModel):
             )
             if holidays_df is not None:
                 scores_ts = pd.Series(list(scores.value), index=data.time)
-                scores_ts.loc[
-                    scores_ts.index.floor("d").isin(holidays_df)
-                ] *= self.holiday_multiplier
+                # pyre-fixme[16]: `Index` has no attribute `floor`.
+                scores_ts.loc[scores_ts.index.floor("d").isin(holidays_df)] *= (
+                    self.holiday_multiplier
+                )
                 scores = TimeSeriesData(
                     time=pd.Series(scores_ts.index), value=scores_ts
                 )
@@ -616,6 +657,39 @@ class ProphetDetectorModel(DetectorModel):
             stat_sig_ts=zeros_ts,
         )
         return response
+
+    @staticmethod
+    def _exclude_ranges(
+        ts: TimeSeriesData,
+        exclude_ranges: List[List[Union[int, pd.Timestamp]]],
+    ) -> TimeSeriesData:
+        """
+        Exclude ranges from the time series.
+        """
+        for exclude_range in exclude_ranges:
+            if len(exclude_range) != 2:
+                raise ValueError(
+                    f"Each exclude range should have exactly 2 timestamps, got {exclude_range}"
+                )
+            start_timestamp, end_timestamp = exclude_range
+
+            if start_timestamp is None or end_timestamp is None:
+                raise ValueError(
+                    f"Start and end timestamps to exclude should not be None, got {exclude_range}"
+                )
+
+            if isinstance(start_timestamp, int):
+                start_timestamp = pd.to_datetime(
+                    start_timestamp, unit="s", utc=ts.is_timezone_aware(), origin="unix"
+                )
+            if isinstance(end_timestamp, int):
+                end_timestamp = pd.to_datetime(
+                    end_timestamp, unit="s", utc=ts.is_timezone_aware(), origin="unix"
+                )
+
+            # Filter out data points within the excluded range
+            ts = ts.exclude(start_timestamp, end_timestamp)
+        return ts
 
     @staticmethod
     def _remove_outliers(
@@ -640,7 +714,9 @@ class ProphetDetectorModel(DetectorModel):
                 stack.enter_context(SilentStdoutStderr())
             model_pass1 = model.fit(ts_df)
 
-        forecast = predict(model_pass1, ts_dates_df, vectorize)
+        forecast = predict(
+            model_pass1, ts_dates_df, vectorize, confidence_band_margin=1e-5
+        )
 
         is_outlier = (
             ts_df[PROPHET_VALUE_COLUMN] < forecast[PROPHET_YHAT_LOWER_COLUMN]
@@ -649,6 +725,27 @@ class ProphetDetectorModel(DetectorModel):
         ts_df = ts_df[~is_outlier]
 
         return ts_df
+
+    @staticmethod
+    def _validate_saturation_range(
+        saturation_range: Optional[List[float]] = None,
+    ) -> None:
+        if saturation_range is None:
+            return
+        if not (
+            isinstance(saturation_range, list)
+            and len(saturation_range) == 2
+            and all(isinstance(x, (int, float)) for x in saturation_range)
+        ):
+            raise ValueError(
+                "Saturation range must be a list of exactly 2 integers or floats."
+            )
+
+        minimum, maximum = saturation_range
+        if minimum >= maximum:
+            raise ValueError(
+                f"Saturation range minimum {minimum} must be smaller than maximum {maximum}."
+            )
 
 
 class ProphetTrendDetectorModel(DetectorModel):

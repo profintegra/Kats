@@ -24,6 +24,7 @@ with warnings.catch_warnings():
     from statsmodels.distributions.empirical_distribution import ECDF
 
 # from numpy.typing import ArrayLike
+# pyre-fixme[24]: Generic type `np.ndarray` expects 2 type parameters.
 ArrayLike = Union[np.ndarray, Sequence[float]]
 
 
@@ -106,7 +107,7 @@ KatsMetric = Union[
 ]
 
 
-def _arrays(*args: Optional[ArrayLike]) -> Generator[np.ndarray, None, None]:
+def _arrays(*args: Optional[ArrayLike]) -> Generator[npt.NDArray, None, None]:
     """Ensure all arguments are arrays of matching size.
 
     Args:
@@ -135,7 +136,7 @@ def _arrays(*args: Optional[ArrayLike]) -> Generator[np.ndarray, None, None]:
 
 def _safe_divide(
     num: npt.NDArray,
-    denom: Union[np.ndarray, float],
+    denom: Union[npt.NDArray, float],
     negative_infinity: float = -1.0,
     positive_infinity: float = 1.0,
     indeterminate: float = 0.0,
@@ -182,7 +183,9 @@ def _safe_divide(
 
 
 def _err(
-    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
+    sample_weight: Optional[npt.NDArray] = None,
 ) -> npt.NDArray:
     if sample_weight is None:
         return y_true - y_pred
@@ -208,7 +211,9 @@ def error(
 
 
 def _abs_err(
-    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
+    sample_weight: Optional[npt.NDArray] = None,
 ) -> npt.NDArray:
     err = np.abs(y_true - y_pred)
     if sample_weight is None:
@@ -235,7 +240,9 @@ def absolute_error(
 
 
 def _pct_err(
-    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
+    sample_weight: Optional[npt.NDArray] = None,
 ) -> npt.NDArray:
     err = y_true - y_pred
     if sample_weight is None:
@@ -262,7 +269,9 @@ def percentage_error(
 
 
 def _abs_pct_err(
-    y_true: npt.NDArray, y_pred: npt.NDArray, sample_weight: Optional[np.ndarray] = None
+    y_true: npt.NDArray,
+    y_pred: npt.NDArray,
+    sample_weight: Optional[npt.NDArray] = None,
 ) -> npt.NDArray:
     err = np.abs(y_true - y_pred)
     if sample_weight is None:
@@ -629,6 +638,7 @@ def symmetric_bias(y_true: ArrayLike, y_pred: ArrayLike) -> float:
     Returns:
         The the symmetric bias (sbias) value.
     """
+    # pyre-fixme[58]: `*` is not supported for operand types `int` and `floating[Any]`.
     return -2 * np.nanmean(
         _safe_divide(error(y_true, y_pred), np.abs(y_true) + np.abs(y_pred))
     )

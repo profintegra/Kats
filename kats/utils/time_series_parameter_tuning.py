@@ -5,7 +5,7 @@
 
 # pyre-strict
 
-""" Module that has parameter tuning classes for time series models.
+"""Module that has parameter tuning classes for time series models.
 
 This module has a collection of classes. A subset of these classes are parameter tuning
 strategies with their abstract parent class. In addition, there are helper classes,
@@ -32,20 +32,23 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import nevergrad as ng
 import pandas as pd
-from ax import Arm, ComparisonOp, Data, OptimizationConfig, SearchSpace
+from ax.adapter.base import Adapter
+from ax.adapter.discrete import DiscreteAdapter
+from ax.adapter.registry import Generators
+from ax.core.arm import Arm
+from ax.core.data import Data
 from ax.core.experiment import Experiment
 from ax.core.generator_run import GeneratorRun
 from ax.core.metric import Metric, MetricFetchE, MetricFetchResult
 from ax.core.objective import Objective
+from ax.core.optimization_config import ComparisonOp, OptimizationConfig
 from ax.core.outcome_constraint import OutcomeConstraint
+from ax.core.search_space import SearchSpace
 from ax.core.trial import BaseTrial
+from ax.generation_strategy.dispatch_utils import choose_generation_strategy_legacy
 from ax.global_stopping.strategies.improvement import ImprovementGlobalStoppingStrategy
-from ax.modelbridge.base import ModelBridge
-from ax.modelbridge.discrete import DiscreteModelBridge
-from ax.modelbridge.dispatch_utils import choose_generation_strategy
-from ax.modelbridge.registry import Models
 from ax.runners.synthetic import SyntheticRunner
-from ax.service.scheduler import Scheduler, SchedulerOptions
+from ax.service.orchestrator import Orchestrator, OrchestratorOptions
 from ax.service.utils.instantiation import InstantiationBase
 from ax.utils.common.result import Err, Ok
 from kats.consts import SearchMethodEnum
@@ -176,6 +179,7 @@ class TimeSeriesEvaluationMetric(Metric):
             return [
                 {
                     "metric_name": name,
+                    "metric_signature": name,
                     "arm_name": arm.name,
                     "mean": value[0],
                     "sem": value[1],
@@ -199,6 +203,7 @@ class TimeSeriesEvaluationMetric(Metric):
             )
         return {
             "metric_name": self.name,
+            "metric_signature": self.signature,
             "arm_name": arm.name,
             "mean": evaluation_result[0],
             "sem": evaluation_result[1],
@@ -424,7 +429,7 @@ class TimeSeriesParameterTuning(ABC):
         self,
         # pyre-fixme[24]: Generic type `Callable` expects 2 type parameters.
         evaluation_function: Callable,
-        generator_run: DiscreteModelBridge,
+        generator_run: DiscreteAdapter,
     ) -> None:
         """Creates a new batch trial then runs the lastest.
 
@@ -465,14 +470,14 @@ class TimeSeriesParameterTuning(ABC):
         )
 
         # pyre-fixme[6]: Expected `Optional[GeneratorRun]` for 1st param but got
-        #  `DiscreteModelBridge`.
+        #  `DiscreteAdapter`.
         self._exp.new_batch_trial(generator_run=generator_run)
         # We run the most recent batch trial as we only run candidate trials
         self._exp.trials[max(self._exp.trials)].run()
         self._trial_data = Data.from_multiple_data(
             [
                 self._trial_data,
-                self._exp.fetch_trials_data(trial_indices=[max(self._exp.trials)]),
+                self._exp.fetch_data(trial_indices=[max(self._exp.trials)]),
             ]
         )
 
@@ -547,6 +552,7 @@ class TimeSeriesParameterTuning(ABC):
                 columns=[
                     "arm_name",
                     "metric_name",
+                    "metric_signature",
                     "mean",
                     "sem",
                     "parameters",
@@ -561,9 +567,7 @@ class TimeSeriesParameterTuning(ABC):
             # Deduplicate entries for which there are outcome constraints
             armscore_df = armscore_df.loc[
                 # pyre-ignore[16]: `None` has no attribute `index`.
-                armscore_df.astype(str)
-                .drop_duplicates()
-                .index
+                armscore_df.astype(str).drop_duplicates().index
             ]
             if legit_arms_only:
 
@@ -765,7 +769,7 @@ class GridSearch(TimeSeriesParameterTuning):
             multiprocessing,
         )
         # pyre-fixme[4]: Attribute must be annotated.
-        self._factorial = Models.FACTORIAL(
+        self._factorial = Generators.FACTORIAL(
             search_space=self.get_search_space(), check_cardinality=False
         )
         self.logger.info("A factorial model for arm generation is created.")
@@ -846,11 +850,11 @@ class RandomSearch(TimeSeriesParameterTuning):
         self.logger.info("Seed that is used in random search: {seed}".format(seed=seed))
         if random_strategy == SearchMethodEnum.RANDOM_SEARCH_UNIFORM:
             # pyre-fixme[4]: Attribute must be annotated.
-            self._random_strategy_model = Models.UNIFORM(
+            self._random_strategy_model = Generators.UNIFORM(
                 search_space=self.get_search_space(), deduplicate=True, seed=seed
             )
         elif random_strategy == SearchMethodEnum.RANDOM_SEARCH_SOBOL:
-            self._random_strategy_model = Models.SOBOL(
+            self._random_strategy_model = Generators.SOBOL(
                 search_space=self.get_search_space(), deduplicate=True, seed=seed
             )
         else:
@@ -894,9 +898,7 @@ class BayesMethodOptions(SearchMethodOptions):
     window_global_stop_size: int = 3
     experiment: Optional[Experiment] = None
     timeout_hours: Optional[int] = None  # timeout in hours for optimization
-    improvement_bar: float = (
-        0.02  # imporvement step for gloabl stop strategy, imporvement bar default value sets for f_score func
-    )
+    improvement_bar: float = 0.02  # imporvement step for gloabl stop strategy, imporvement bar default value sets for f_score func
     max_initialization_trials: int = 5
     seed: Optional[int] = None
 
@@ -932,7 +934,7 @@ class BayesianOptSearch(TimeSeriesParameterTuning):
 
     """
 
-    _bayes_opt_model: Optional[ModelBridge] = None
+    _bayes_opt_model: Optional[Adapter] = None
 
     def __init__(
         self,
@@ -969,11 +971,11 @@ class BayesianOptSearch(TimeSeriesParameterTuning):
         self.logger.info("Seed that is used in random search: {seed}".format(seed=seed))
         if random_strategy == SearchMethodEnum.RANDOM_SEARCH_UNIFORM:
             # pyre-fixme[4]: Attribute must be annotated.
-            self._random_strategy_model = Models.UNIFORM(
+            self._random_strategy_model = Generators.UNIFORM(
                 search_space=self.get_search_space(), deduplicate=True, seed=seed
             )
         elif random_strategy == SearchMethodEnum.RANDOM_SEARCH_SOBOL:
-            self._random_strategy_model = Models.SOBOL(
+            self._random_strategy_model = Generators.SOBOL(
                 search_space=self.get_search_space(), deduplicate=True, seed=seed
             )
         else:
@@ -1024,14 +1026,14 @@ class BayesianOptSearch(TimeSeriesParameterTuning):
             )
             return
         assert evaluation_function
-        self._bayes_opt_model = Models.BOTORCH_MODULAR(
+        self._bayes_opt_model = Generators.BOTORCH_MODULAR(
             experiment=self._exp,
             data=self._trial_data,
         )
         model_run = self._bayes_opt_model.gen(n=arm_count)
         self.generator_run_for_search_method(
             evaluation_function=evaluation_function,
-            # pyre-fixme[6]: Expected `DiscreteModelBridge` for 2nd param but got
+            # pyre-fixme[6]: Expected `DiscreteAdapter` for 2nd param but got
             #  `GeneratorRun`.
             generator_run=model_run,
         )
@@ -1063,7 +1065,7 @@ class BayesianOptSearch(TimeSeriesParameterTuning):
         arm_count: int = 1,
     ) -> None:
         """In comparison with other generate_evaluate_new_parameter_values for GRID
-        and RANDOM search, this method use Scheduler in order to manipulate epochs
+        and RANDOM search, this method use Orchestrator in order to manipulate epochs
         of optimization, and do NOT use generator_run_for_search_method function.
         """
 
@@ -1104,7 +1106,7 @@ class BayesianOptSearch(TimeSeriesParameterTuning):
             self.evaluation_function = list(
                 self._exp.optimization_config.metrics.values()  # type: ignore
             )[0].evaluation_function
-        generation_strategy = choose_generation_strategy(
+        generation_strategy = choose_generation_strategy_legacy(
             search_space=self._exp.search_space,
             max_parallelism_cap=min(
                 cpu_count(),
@@ -1126,19 +1128,19 @@ class BayesianOptSearch(TimeSeriesParameterTuning):
             window_size=options.window_global_stop_size,
             improvement_bar=options.improvement_bar,
         )
-        scheduler = Scheduler(
+        orchestrator = Orchestrator(
             experiment=self._exp,
             generation_strategy=generation_strategy,
-            options=SchedulerOptions(
+            options=OrchestratorOptions(
                 global_stopping_strategy=stop_strategy,
                 run_trials_in_batches=bool(options.multiprocessing),
             ),
         )
 
-        scheduler.run_n_trials(
+        orchestrator.run_n_trials(
             max_trials=options.max_trials, timeout_hours=options.timeout_hours
         )
-        res_data = scheduler.experiment.lookup_data()
+        res_data = orchestrator.experiment.lookup_data()
         self._trial_data = Data.from_multiple_data(
             [
                 self._trial_data,
@@ -1205,10 +1207,10 @@ def get_nevergrad_param_from_ax(
     return ng.p.Instrumentation(**params_list)
 
 
-def get_fixed_param_from_ax(
-    ax_params: List[Dict[str, Any]]
-) -> Dict[str, Any]:  # type: ignore
-    params_list: Dict[str, Any] = {param["name"]: param["value"] for param in ax_params if param["type"] == "fixed"}  # type: ignore
+def get_fixed_param_from_ax(ax_params: List[Dict[str, Any]]) -> Dict[str, Any]:  # type: ignore
+    params_list: Dict[str, Any] = {
+        param["name"]: param["value"] for param in ax_params if param["type"] == "fixed"
+    }  # type: ignore
     return params_list
 
 
@@ -1317,6 +1319,7 @@ class NevergradOptSearch(TimeSeriesParameterTuning):
                 "sem": [0.0],
                 "trial_index": [arm_count],
                 "parameters": [recommendation.value[1]],
+                "metric_signature": [self.options.objective_name],
             }
         )
         self._list_parameter_value_scores = res_df

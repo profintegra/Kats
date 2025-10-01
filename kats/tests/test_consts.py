@@ -48,10 +48,9 @@ VALUE_COL_NAME = "y"
 MULTIVAR_VALUE_DF_COLS: List[str] = [VALUE_COL_NAME, VALUE_COL_NAME + "_1"]
 
 EMPTY_DF = pd.DataFrame()
-EMPTY_TIME_SERIES = pd.Series([], name=DEFAULT_TIME_NAME, dtype=float)
+EMPTY_TIME_SERIES = pd.Series([], name=DEFAULT_TIME_NAME, dtype="datetime64[ns]")
 EMPTY_VALUE_SERIES = pd.Series([], name=DEFAULT_VALUE_NAME, dtype=float)
 EMPTY_VALUE_SERIES_NO_NAME = pd.Series([], dtype=float)
-EMPTY_TIME_DATETIME_INDEX = pd.DatetimeIndex(pd.Series([], dtype=object))
 # pyre-fixme[9]: EMPTY_DF_WITH_COLS has type `DataFrame`; used as `Union[DataFrame,
 #  Series]`.
 EMPTY_DF_WITH_COLS: pd.DataFrame = pd.concat(
@@ -93,6 +92,7 @@ class TimeSeriesBaseTest(TestCase):
         self.MULTIVAR_VALUE_DF = self.MULTIVAR_AIR_DF[MULTIVAR_VALUE_DF_COLS]
         self.AIR_TIME_SERIES = self.AIR_DF.ds
         self.AIR_TIME_SERIES_PD_DATETIME = pd.to_datetime(self.AIR_TIME_SERIES)
+        # pyre-fixme[16]: `Timestamp` has no attribute `apply`.
         self.AIR_TIME_SERIES_UNIXTIME = self.AIR_TIME_SERIES_PD_DATETIME.apply(
             lambda x: (x - datetime(1970, 1, 1)).total_seconds()
         )
@@ -865,15 +865,17 @@ class TimeSeriesDataInitTest(TimeSeriesBaseTest):
         # calculate frequency first
         frequency = str(int(ts0.infer_freq_robust().total_seconds())) + "s"
 
-        # without base value, interpolate won't work, will return all NaN
+        # Without base value, interpolate won't work, will return all NaN
         # this is because start time is not from "**:00:00" or "**:30:00" type.
+        # This is equivalent to origin="start_day"
         self.assertEqual(
             # pyre-fixme[16]: Optional type has no attribute `value`.
             ts0.interpolate(freq=frequency).to_dataframe().fillna(0).value.sum(),
             0,
         )
-        # with base value, will start from "**:59:59" ("**:00:00" - 1 sec)
+        # With base value, will start from "**:59:59" ("**:00:00" - 1 sec)
         # or "**:29:59" ("**:30:00" -1 sec).
+        # Here we default to origin="start" instead of origin="start_day", which works.
         self.assertEqual(
             ts0.interpolate(freq=frequency, base=-1).to_dataframe().isna().value.sum(),
             0,
@@ -1170,15 +1172,15 @@ class TimeSeriesDataOpsTest(TimeSeriesBaseTest):
         transformed_df_date.ds = transformed_df_date.ds.apply(
             lambda x: x + relativedelta(years=NUM_YEARS_OFFSET)
         )
-        transformed_df_date_concat = self.AIR_DF.append(
-            transformed_df_date, ignore_index=True
+        transformed_df_date_concat = pd.concat(
+            [self.AIR_DF, transformed_df_date], ignore_index=True
         )
         transformed_df_date_double = self.AIR_DF_DATETIME.copy(deep=True)
         transformed_df_date_double.ds = transformed_df_date.ds.apply(
             lambda x: x + relativedelta(years=NUM_YEARS_OFFSET * 2)
         )
-        transformed_df_date_concat_double = self.AIR_DF.append(
-            transformed_df_date_double, ignore_index=True
+        transformed_df_date_concat_double = pd.concat(
+            [self.AIR_DF, transformed_df_date_double], ignore_index=True
         )
         # DataFrames with value offset
         transformed_df_value = self.AIR_DF.copy(deep=True)
@@ -1195,21 +1197,21 @@ class TimeSeriesDataOpsTest(TimeSeriesBaseTest):
         transformed_df_date_multi[VALUE_COL_NAME + "_1"] = (
             transformed_df_date_multi.y * 2
         )
-        transformed_df_date_concat_multi = self.MULTIVAR_AIR_DF.append(
-            transformed_df_date_multi, ignore_index=True
+        transformed_df_date_concat_multi = pd.concat(
+            [self.MULTIVAR_AIR_DF, transformed_df_date_multi], ignore_index=True
         )
-        transformed_df_date_concat_mixed = self.MULTIVAR_AIR_DF_DATETIME.append(
-            transformed_df_date
+        transformed_df_date_concat_mixed = pd.concat(
+            [self.MULTIVAR_AIR_DF_DATETIME, transformed_df_date]
         )
         transformed_df_date_double_multi = transformed_df_date_double.copy(deep=True)
         transformed_df_date_double_multi[VALUE_COL_NAME + "_1"] = (
             transformed_df_date_double_multi.y * 2
         )
-        transformed_df_date_concat_double_multi = self.MULTIVAR_AIR_DF.append(
-            transformed_df_date_double_multi, ignore_index=True
+        transformed_df_date_concat_double_multi = pd.concat(
+            [self.MULTIVAR_AIR_DF, transformed_df_date_double_multi], ignore_index=True
         )
-        transformed_df_date_concat_double_mixed = self.MULTIVAR_AIR_DF_DATETIME.append(
-            transformed_df_date_double
+        transformed_df_date_concat_double_mixed = pd.concat(
+            [self.MULTIVAR_AIR_DF_DATETIME, transformed_df_date_double]
         )
         # DataFrame with value offset (multivariate)
         transformed_df_value_none_multi = self.MULTIVAR_AIR_DF.copy(deep=True)
@@ -1346,6 +1348,24 @@ class TimeSeriesDataOpsTest(TimeSeriesBaseTest):
 
         # Other values
         self.length = len(self.AIR_DF)
+
+        self.tsd_exclude_test = TimeSeriesData(
+            df=pd.DataFrame(
+                {
+                    "time": [
+                        "2018-10-28 01:30:00",
+                        "2018-10-28 02:00:00",
+                        "2018-10-28 02:30:00",
+                        "2018-10-28 03:00:00",
+                        "2018-10-28 03:30:00",
+                        "2018-10-28 04:00:00",
+                        "2018-10-28 04:30:00",
+                    ],
+                    "value": [0] * 7,
+                }
+            ),
+            tz="UTC",
+        )
 
     def test_eq(self) -> None:
         # Univariate equality
@@ -1508,6 +1528,71 @@ class TimeSeriesDataOpsTest(TimeSeriesBaseTest):
         # Empty case
         self.ts_empty_extend.extend(self.ts_empty, validate=False)
         self.assertEqual(self.ts_empty_extend, self.ts_empty)
+
+    def test_exclude_whole_ts(self) -> None:
+        tsd_exclude = self.tsd_exclude_test.exclude(
+            self.tsd_exclude_test.time.min(), self.tsd_exclude_test.time.max()
+        )
+        self.assertEqual(tsd_exclude.is_empty(), True)
+
+    def test_exclude_starting_range(self) -> None:
+        tsd_after_exclude = self.tsd_exclude_test.exclude(
+            self.tsd_exclude_test.time.min(),
+            pd.to_datetime("2018-10-28 03:00:00", utc=True),
+        )
+        expected_result = TimeSeriesData(
+            df=pd.DataFrame(
+                {
+                    "time": [
+                        "2018-10-28 03:30:00",
+                        "2018-10-28 04:00:00",
+                        "2018-10-28 04:30:00",
+                    ],
+                    "value": [0] * 3,
+                }
+            ),
+            tz="UTC",
+        )
+        self.assertEqual(tsd_after_exclude, expected_result)
+
+    def test_exclude_ending_range(self) -> None:
+        tsd_after_exclude = self.tsd_exclude_test.exclude(
+            pd.to_datetime("2018-10-28 02:30:00", utc=True),
+            self.tsd_exclude_test.time.max(),
+        )
+        expected_result = TimeSeriesData(
+            df=pd.DataFrame(
+                {
+                    "time": [
+                        "2018-10-28 01:30:00",
+                        "2018-10-28 02:00:00",
+                    ],
+                    "value": [0] * 2,
+                }
+            ),
+            tz="UTC",
+        )
+        self.assertEqual(tsd_after_exclude, expected_result)
+
+    def test_exclude_middle_range(self) -> None:
+        tsd_after_exclude = self.tsd_exclude_test.exclude(
+            pd.to_datetime("2018-10-28 02:30:00", utc=True),
+            pd.to_datetime("2018-10-28 04:00:00", utc=True),
+        )
+        expected_result = TimeSeriesData(
+            df=pd.DataFrame(
+                {
+                    "time": [
+                        "2018-10-28 01:30:00",
+                        "2018-10-28 02:00:00",
+                        "2018-10-28 04:30:00",
+                    ],
+                    "value": [0] * 3,
+                }
+            ),
+            tz="UTC",
+        )
+        self.assertEqual(tsd_after_exclude, expected_result)
 
     def test_get_item(self) -> None:
         # Univariate test case

@@ -59,8 +59,9 @@ class MedianEnsembleModel(ensemble.BaseEnsemble):
         """
 
         logging.debug(
-            "Call predict() with parameters. "
-            "steps:{steps}, kwargs:{kwargs}".format(steps=steps, kwargs=kwargs)
+            "Call predict() with parameters. " "steps:{steps}, kwargs:{kwargs}".format(
+                steps=steps, kwargs=kwargs
+            )
         )
         # Keep freq in the parameters passed to _predict_all()
         self.freq = freq = kwargs.get("freq", "D")
@@ -73,6 +74,8 @@ class MedianEnsembleModel(ensemble.BaseEnsemble):
             copy=False,
         )
         fcst_all.columns = cast(List[str], pred_dict.keys())
+        # pyre-fixme[8]: Attribute has type `Optional[DataFrame]`; used as
+        #  `Union[float, Series]`.
         self.fcst = fcst_all.median(axis=1)
 
         # create future dates

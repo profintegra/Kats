@@ -29,6 +29,7 @@ from copy import copy
 from typing import Any, Callable, cast, Dict, List, Optional, Union
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from kats.consts import Params, TimeSeriesData
 from kats.models import (
@@ -168,9 +169,9 @@ class STLFModel(Model[STLFParams]):
     ] = None
     freq: Optional[str] = None
     alpha: Optional[float] = None
-    y_fcst: Optional[Union[np.ndarray, pd.Series, pd.DataFrame]] = None
-    fcst_lower: Optional[Union[np.ndarray, pd.Series, pd.DataFrame]] = None
-    fcst_upper: Optional[Union[np.ndarray, pd.Series, pd.DataFrame]] = None
+    y_fcst: Optional[Union[npt.NDArray, pd.Series, pd.DataFrame]] = None
+    fcst_lower: Optional[Union[npt.NDArray, pd.Series, pd.DataFrame]] = None
+    fcst_upper: Optional[Union[npt.NDArray, pd.Series, pd.DataFrame]] = None
     dates: Optional[pd.DatetimeIndex] = None
     fcst_df: Optional[pd.DataFrame] = None
     deseasonal_operator: Callable(Union[_operator.truediv, _operator.sub])[
@@ -185,7 +186,7 @@ class STLFModel(Model[STLFParams]):
             Union[pd.Series, pd.DataFrame],
             Union[pd.Series, pd.DataFrame],
         ],
-        Union[np.ndarray, pd.Series, pd.DataFrame],
+        Union[npt.NDArray, pd.Series, pd.DataFrame],
     ]
 
     def __init__(self, data: TimeSeriesData, params: STLFParams) -> None:
@@ -206,6 +207,7 @@ class STLFModel(Model[STLFParams]):
 
         if self.params.decomposition == "multiplicative":
             self.deseasonal_operator = operator.truediv
+            # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
             self.reseasonal_operator = operator.mul
         else:
             assert self.params.decomposition == "additive"
@@ -322,8 +324,9 @@ class STLFModel(Model[STLFParams]):
         assert decomp is not None
 
         logging.debug(
-            "Call predict() with parameters. "
-            "steps:{steps}, kwargs:{kwargs}".format(steps=steps, kwargs=kwargs)
+            "Call predict() with parameters. " "steps:{steps}, kwargs:{kwargs}".format(
+                steps=steps, kwargs=kwargs
+            )
         )
         self.include_history = include_history
         # pyre-fixme[16]: `Optional` has no attribute `time`.
@@ -342,14 +345,29 @@ class STLFModel(Model[STLFParams]):
         seasonality = decomp["seasonal"].value[-m:]
 
         self.y_fcst = self.reseasonal_operator(
-            fcst.fcst, np.tile(seasonality, rep)[: fcst.shape[0]]
+            # pyre-fixme[6]: For 2nd argument expected `Union[DataFrame, Series]`
+            #  but got `ndarray[Any, dtype[Any]]`.
+            fcst.fcst,
+            # pyre-fixme[6]: For 2nd argument expected `Union[DataFrame, Series]`
+            #  but got `ndarray[Any, dtype[Any]]`.
+            np.tile(seasonality, rep)[: fcst.shape[0]],
         )
         if ("fcst_lower" in fcst.columns) and ("fcst_upper" in fcst.columns):
             self.fcst_lower = self.reseasonal_operator(
-                fcst.fcst_lower, np.tile(seasonality, rep)[: fcst.shape[0]]
+                # pyre-fixme[6]: For 2nd argument expected `Union[DataFrame,
+                #  Series]` but got `ndarray[Any, dtype[Any]]`.
+                fcst.fcst_lower,
+                # pyre-fixme[6]: For 2nd argument expected `Union[DataFrame,
+                #  Series]` but got `ndarray[Any, dtype[Any]]`.
+                np.tile(seasonality, rep)[: fcst.shape[0]],
             )
             self.fcst_upper = self.reseasonal_operator(
-                fcst.fcst_upper, np.tile(seasonality, rep)[: fcst.shape[0]]
+                # pyre-fixme[6]: For 2nd argument expected `Union[DataFrame,
+                #  Series]` but got `ndarray[Any, dtype[Any]]`.
+                fcst.fcst_upper,
+                # pyre-fixme[6]: For 2nd argument expected `Union[DataFrame,
+                #  Series]` but got `ndarray[Any, dtype[Any]]`.
+                np.tile(seasonality, rep)[: fcst.shape[0]],
             )
         logging.info("Generated forecast data from STLF model.")
         logging.debug("Forecast data: {fcst}".format(fcst=self.y_fcst))
@@ -360,6 +378,9 @@ class STLFModel(Model[STLFParams]):
         self.dates = dates[dates != last_date]  # Return correct number of periods
 
         if include_history:
+            # pyre-fixme[8]: Attribute has type `Optional[DatetimeIndex]`; used as
+            #  `ndarray[Any, dtype[Any]]`.
+            # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtype[An...
             self.dates = np.concatenate((pd.to_datetime(self.data.time), self.dates))
 
         self.fcst_df = fcst_df = pd.DataFrame(

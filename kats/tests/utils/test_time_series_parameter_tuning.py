@@ -13,8 +13,8 @@ import kats.utils.time_series_parameter_tuning as tpt
 import pandas as pd
 
 from ax.core.parameter import ChoiceParameter, FixedParameter, ParameterType
-from ax.models.random.sobol import SobolGenerator
-from ax.models.random.uniform import UniformGenerator
+from ax.generators.random.sobol import SobolGenerator
+from ax.generators.random.uniform import UniformGenerator
 from kats.consts import SearchMethodEnum
 from kats.models.arima import ARIMAModel
 from kats.models.prophet import ProphetModel
@@ -203,7 +203,7 @@ class GridSearchTest(TestCase):
         self.assertIsInstance(
             # pyre-fixme[16]: `TimeSeriesParameterTuning` has no attribute
             #  `_random_strategy_model`.
-            time_series_parameter_tuner._random_strategy_model.model,
+            time_series_parameter_tuner._random_strategy_model.generator,
             UniformGenerator,
         )
         for _ in range(3):
@@ -233,7 +233,7 @@ class GridSearchTest(TestCase):
         self.assertIsInstance(
             # pyre-fixme[16]: `TimeSeriesParameterTuning` has no attribute
             #  `_random_strategy_model`.
-            time_series_parameter_tuner._random_strategy_model.model,
+            time_series_parameter_tuner._random_strategy_model.generator,
             SobolGenerator,
         )
         for _ in range(4):

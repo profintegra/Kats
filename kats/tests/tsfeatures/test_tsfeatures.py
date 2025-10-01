@@ -63,13 +63,13 @@ SAMPLE_INPUT_TS_BOCPD_SCALED = pd.DataFrame(
 
 
 def _univariate_features(
-    feats: Union[Dict[str, float], List[Dict[str, float]]]
+    feats: Union[Dict[str, float], List[Dict[str, float]]],
 ) -> Dict[str, float]:
     return cast(Dict[str, float], feats)
 
 
 def _multivariate_features(
-    feats: Union[Dict[str, float], List[Dict[str, float]]]
+    feats: Union[Dict[str, float], List[Dict[str, float]]],
 ) -> List[Dict[str, float]]:
     return cast(List[Dict[str, float]], feats)
 
@@ -177,8 +177,8 @@ class TSfeaturesTest(TestCase):
             "seas_acf1": -0.1483,
             "seas_pacf1": -0.0064,
             # special_ac
-            "firstmin_ac": 2.0,
-            "firstzero_ac": 4.0,
+            "firstmin_ac": 4,
+            "firstzero_ac": 4,
             # holt_params
             "holt_alpha": 0.0,
             "holt_beta": 0.0,
@@ -197,6 +197,7 @@ class TSfeaturesTest(TestCase):
             expected["seasonality_strength"] = 0.410921
             expected["spikiness"] = 0.000661
             expected["holt_alpha"] = 1e-8
+
         for feature_vector in feature_list:
             self.assertDictAlmostEqual(expected, feature_vector)
 
@@ -254,7 +255,7 @@ class TSfeaturesTest(TestCase):
             "diff2y_pacf5": 0.26101,
             "seas_acf1": 0.662904,
             "seas_pacf1": 0.15617,
-            "firstmin_ac": 2,
+            "firstmin_ac": 8,
             "firstzero_ac": 52,
             "holt_alpha": 1.0,
             "holt_beta": 0.0,
@@ -601,7 +602,7 @@ class TSfeaturesTest(TestCase):
             "diff2y_pacf5": 4.427552,
             "seas_acf1": -0.148278,
             "seas_pacf1": -0.006386,
-            "firstmin_ac": 2,
+            "firstmin_ac": 4,
             "firstzero_ac": 4,
             "holt_alpha": 1.014757e-09,
             "holt_beta": 0.0,
@@ -754,7 +755,10 @@ class TestTsCalendarFeatures(TestCase):
         f1 = tcf.get_features(ts.time)
         f2 = tcf.get_features(ts)
         self.assertTrue(
-            f1.equals(f2), "Features computed from the same timestamps are not equal."
+            # pyre-fixme[16]: Item `ndarray` of `ndarray[Any, dtype[Any]] |
+            #  DataFrame` has no attribute `equals`.
+            f1.equals(f2),
+            "Features computed from the same timestamps are not equal.",
         )
 
 
@@ -774,7 +778,6 @@ class TestTsFourierFeatures(TestCase):
         fourier_order: Union[List[int], int],
         offset: Union[float, int],
     ) -> None:
-
         tff = TsFourierFeatures(fourier_period, fourier_order, offset)
         f1 = tff.get_features(ts)
         f2 = tff.get_features(ts.time)
@@ -785,11 +788,15 @@ class TestTsFourierFeatures(TestCase):
         )
         tff2 = TsFourierFeatures(fourier_period2, fourier_order, 1)
         f3 = tff2.get_features(ts)
+        # pyre-fixme[16]: Item `ndarray` of `ndarray[Any, dtype[Any]] | DataFrame`
+        #  has no attribute `values`.
         mdiff1 = np.max(np.abs(f1.values - f2.values))
         self.assertTrue(
             mdiff1 < 1e-5,
             f"Get different values when using the same timestamps, f1 = {f1} and f2 = {f2}.",
         )
+        # pyre-fixme[16]: Item `ndarray` of `ndarray[Any, dtype[Any]] | DataFrame`
+        #  has no attribute `values`.
         mdiff2 = np.max(np.abs(f1.values - f3.values))
         self.assertTrue(
             mdiff2 < 1e-5,

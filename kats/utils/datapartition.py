@@ -186,7 +186,6 @@ class SimpleDataPartition(DataPartitionBase):
         multi: bool = True,
         max_core: Optional[int] = None,
     ) -> None:
-
         super(SimpleDataPartition, self).__init__(multi=multi, max_core=max_core)
         self.split_num = 1
         if (train_frac is None) and (train_size is None):
@@ -302,11 +301,18 @@ class SimpleTimestampDataPartition(DataPartitionBase):
     def _single_train_test_split(
         self, tag: Union[str, int], data: TimeSeriesData
     ) -> Tuple[Union[str, int], List[TrainTestData]]:
-
         time_index = data.time
+        # pyre-fixme[6]: For 2nd argument expected `Union[bytes, complex, float,
+        #  int, generic, str]` but got `Timestamp`.
         train_start_idx = np.searchsorted(time_index, self.train_start)
+        # pyre-fixme[6]: For 2nd argument expected `Union[bytes, complex, float,
+        #  int, generic, str]` but got `Timestamp`.
         train_end_idx = np.searchsorted(time_index, self.train_end, side="right")
+        # pyre-fixme[6]: For 2nd argument expected `Union[bytes, complex, float,
+        #  int, generic, str]` but got `Timestamp`.
         test_start_idx = np.searchsorted(time_index, self.test_start)
+        # pyre-fixme[6]: For 2nd argument expected `Union[bytes, complex, float,
+        #  int, generic, str]` but got `Timestamp`.
         test_end_idx = np.searchsorted(time_index, self.test_end, side="right")
 
         return tag, [
@@ -367,7 +373,6 @@ class RollingOriginDataParition(DataPartitionBase):
         window_frac: float,
         expanding_steps: int,
     ) -> Tuple[float, float, float, int]:
-
         if start_train_frac < 0.0 or start_train_frac > 1.0:
             msg = f"`start_frain_frac` should be a float in (0, 1) but receives {start_train_frac}."
             _raise_error(msg)

@@ -54,8 +54,6 @@ from kats.consts import IntervalAnomaly, TimeSeriesData
 from kats.detectors.detector import DetectorModel
 from kats.detectors.detector_consts import AnomalyResponse, ConfidenceBand
 from matplotlib import pyplot as plt
-
-from numpy.linalg import matrix_power
 from scipy.linalg import toeplitz
 from scipy.stats import beta, binom, mvn, norm
 from scipy.stats._multivariate import _PSD, multivariate_normal_gen
@@ -275,8 +273,10 @@ class CriticalValue:
     @property
     def absolute_critical_value(self) -> pd.Series:
         if self.lower is not None:
+            # pyre-fixme[7]: Expected `Series` but got `ndarray[Any, dtype[Any]]`.
             return np.absolute(self.lower)
         elif self.upper is not None:
+            # pyre-fixme[7]: Expected `Series` but got `ndarray[Any, dtype[Any]]`.
             return np.absolute(self.upper)
         else:
             raise ValueError(
@@ -304,7 +304,6 @@ class ABInterval(IntervalAnomaly):
     def __init__(
         self,
         interval_type: ABIntervalType,
-        # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
         start: pd.Timestamp,
         end: pd.Timestamp,
     ) -> None:
@@ -567,6 +566,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
         interval_padding: int = 30,
         interval_units: str = "m",
         r_tol: float = 0.1,
+        mask_scores: bool = False,
         **kwargs: Any,
     ) -> AnomalyResponse:
         """Fit and predict on a Interval based AB test on time series data.
@@ -594,10 +594,11 @@ class IntervalDetectorModel(DetectorModel, ABC):
             r_tol: Relative tolerance used for automatic assignment to duration property.
                 If duration is `None`, then a value is automatically assigned such that
                 alpha is corrected to be no greater than alpha * (1 + r_tol).
+            mask_scores: If True the returned scores will be masked by applying them to the critical value
 
         Returns:
             The results of the Interval based AB test. Including:
-                - scores: Raw test statistic.
+                - scores: Raw test statistic, or mask of test statistic applied to critical value.
                 - predicted_ts: Boolean array of predictions that are formed from contiguous intervals.
                 - stat_sig: Statistical significance of `scores`.
                 - upper: Upper limit in the (1 - alpha) confidence interval.
@@ -657,10 +658,13 @@ class IntervalDetectorModel(DetectorModel, ABC):
         _stat_sig: pd.Series = self.test_result.stat_sig
         _upper: pd.Series = self.test_result.upper
         _lower: pd.Series = self.test_result.lower
+        scores = (
+            pd.Series(self._get_test_decision(ABIntervalType.REJECT))
+            if mask_scores
+            else self.test_result.test_statistic
+        )
         return AnomalyResponse(
-            scores=TimeSeriesData(
-                time=_data.time, value=self.test_result.test_statistic
-            ),
+            scores=TimeSeriesData(time=_data.time, value=scores),
             confidence_band=ConfidenceBand(
                 upper=TimeSeriesData(
                     time=_data.time,
@@ -904,8 +908,8 @@ class IntervalDetectorModel(DetectorModel, ABC):
     def _mvn_mvnun(
         lower: npt.NDArray,
         upper: npt.NDArray,
-        mean: Optional[np.ndarray] = None,
-        cov: Union[int, np.ndarray] = 1,
+        mean: Optional[npt.NDArray] = None,
+        cov: Union[int, npt.NDArray] = 1,
         allow_singular: bool = False,
         maxpts: Optional[int] = None,
         abseps: float = 1e-6,
@@ -925,15 +929,20 @@ class IntervalDetectorModel(DetectorModel, ABC):
             abseps: Absolute error tolerance
             releps: Relative error tolerance
         """
-        # Follow preprocessing from:
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.multivariate_normal.html
+        dim = lower.shape[0]
+        if mean is None:
+            mean = np.zeros((dim, 1))
+
         _multivariate_normal_gen = multivariate_normal_gen()
-        # pyre-ignore
-        dim, mean, cov = _multivariate_normal_gen._process_parameters(None, mean, cov)
-        # pyre-ignore
+        # pyre-fixme[16]: `multivariate_normal_gen` has no attribute
+        #  `_process_quantiles`.
         lower = _multivariate_normal_gen._process_quantiles(lower, dim)
         upper = _multivariate_normal_gen._process_quantiles(upper, dim)
+        # TODO: this is deprecated, replace
+        # pyre-fixme[16]: Item `int` of `ndarray[Any, dtype[Any]] | int` has no
+        #  attribute `astype`.
         _PSD(cov, allow_singular=allow_singular)
+
         return mvn.mvnun(
             lower=lower,
             upper=upper,
@@ -1031,7 +1040,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
 
     @staticmethod
     def _w(
-        m: int, p: float, test_type: TestType, cov: Optional[np.ndarray] = None
+        m: int, p: float, test_type: TestType, cov: Optional[npt.NDArray] = None
     ) -> npt.NDArray:
         if cov is None:
             return IntervalDetectorModel._w_independent(m=m, p=p)
@@ -1048,7 +1057,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
         n: int,
         m: int,
         test_type: TestType = TestType.ONE_SIDED_UPPER,
-        cov: Optional[np.ndarray] = None,
+        cov: Optional[npt.NDArray] = None,
     ) -> float:
         """P(at least 1 run of m consecutive rejections) in a vectorized formulation.
 
@@ -1203,7 +1212,7 @@ class IntervalDetectorModel(DetectorModel, ABC):
             )
 
     @staticmethod
-    def _get_true_run_indices(x: npt.NDArray) -> Tuple[np.ndarray, np.ndarray]:
+    def _get_true_run_indices(x: npt.NDArray) -> Tuple[npt.NDArray, npt.NDArray]:
         """Helper function that finds consecutive runs of `True` values.
 
         Example:
@@ -1604,7 +1613,18 @@ class TwoSampleIntervalDetectorModel(IntervalDetectorModel, ABC):
                 f"Expected test_type to be of TestType. Found {self.test_type}"
             )
         return ABTestResult(
-            test_statistic=test_statistic, stat_sig=stat_sig, upper=upper, lower=lower
+            # pyre-fixme[6]: For 3rd argument expected `Series` but got
+            #  `Union[ndarray[Any, dtype[Any]], Series]`.
+            # pyre-fixme[6]: For 4th argument expected `Series` but got
+            #  `Union[ndarray[Any, dtype[Any]], Series]`.
+            test_statistic=test_statistic,
+            stat_sig=stat_sig,
+            # pyre-fixme[6]: For 3rd argument expected `Series` but got
+            #  `Union[ndarray[Any, dtype[Any]], Series]`.
+            upper=upper,
+            # pyre-fixme[6]: For 4th argument expected `Series` but got
+            #  `Union[ndarray[Any, dtype[Any]], Series]`.
+            lower=lower,
         )
 
     @abstractmethod

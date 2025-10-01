@@ -10,6 +10,7 @@
 
 Simple Heuristic model is a model that applies simple rules like mean or percentiles on historical data to get prediction.
 """
+
 import logging
 from typing import Any, Callable, Optional
 
@@ -71,12 +72,12 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
         params: the parameter class defined with `SimpleHeuristicModelParams`
     """
 
-    model: Callable[[np.ndarray], np.ndarray]
+    model: Callable[[npt.NDArray], npt.NDArray]
     include_history: bool = False
     dates: Optional[pd.DatetimeIndex] = None
-    y_fcst: Optional[np.ndarray] = None
-    y_fcst_lower: Optional[np.ndarray] = None
-    y_fcst_upper: Optional[np.ndarray] = None
+    y_fcst: Optional[npt.NDArray] = None
+    y_fcst_lower: Optional[npt.NDArray] = None
+    y_fcst_upper: Optional[npt.NDArray] = None
     fcst_df: pd.DataFrame = pd.DataFrame(data=None)
     freq: Optional[str] = None
 
@@ -92,9 +93,13 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
             logging.error(msg)
             raise ValueError(msg)
 
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.model = self._calc_last
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.y_fcst = None
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.y_fcst_lower = None
+        # pyre-fixme[4]: Attribute annotation cannot contain `Any`.
         self.y_fcst_upper = None
         self.fcst_df = pd.DataFrame(data=None)
 
@@ -136,8 +141,9 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
     def fit(self) -> None:
         "fit Simple Heuristic Model."
         logging.debug(
-            "Call fit() with parameters: "
-            "method:{method}".format(method=self.params.method)
+            "Call fit() with parameters: " "method:{method}".format(
+                method=self.params.method
+            )
         )
 
         if self.params.method == "last":
@@ -192,12 +198,18 @@ class SimpleHeuristicModel(Model[SimpleHeuristicModelParams]):
         self.dates = dates[dates != last_date]
 
         if self.include_history:
+            # pyre-fixme[8]: Attribute has type `Optional[DatetimeIndex]`; used as
+            #  `ndarray[Any, dtype[Any]]`.
+            # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtype[An...
             self.dates = np.concatenate((pd.to_datetime(self.data.time), self.dates))
+            # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtype[An...
             self.y_fcst = np.concatenate((np.asarray(self.data.value), self.y_fcst))
             self.y_fcst_lower = np.concatenate(
+                # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtyp...
                 (np.asarray(self.data.value), self.y_fcst_lower)
             )
             self.y_fcst_upper = np.concatenate(
+                # pyre-fixme[6]: For 1st argument expected `Union[_SupportsArray[dtyp...
                 (np.asarray(self.data.value), self.y_fcst_upper)
             )
 

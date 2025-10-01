@@ -15,7 +15,7 @@ from unittest.mock import patch
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from ax.modelbridge.registry import Models, SearchSpace
+from ax.adapter.registry import Generators, SearchSpace
 from ax.service.utils.instantiation import InstantiationBase
 from kats.consts import TimeSeriesData
 from kats.models.arima import ARIMAModel
@@ -24,7 +24,6 @@ from kats.models.metalearner.get_metadata import GetMetaData
 from kats.models.metalearner.metalearner_hpt import MetaLearnHPT
 from kats.models.metalearner.metalearner_modelselect import MetaLearnModelSelect
 from kats.models.metalearner.metalearner_predictability import MetaLearnPredictability
-from kats.models.neuralprophet import NeuralProphetModel, NeuralProphetParams
 from kats.models.prophet import ProphetModel, ProphetParams
 from kats.models.sarima import SARIMAModel, SARIMAParams
 from kats.models.stlf import STLFModel, STLFParams
@@ -77,7 +76,6 @@ base_models = {
     "arima": ARIMAModel,
     "holtwinters": HoltWintersModel,
     "sarima": SARIMAModel,
-    "neuralprophet": NeuralProphetModel,
     "prophet": ProphetModel,
     "stlf": STLFModel,
     "theta": ThetaModel,
@@ -103,7 +101,7 @@ def generate_meta_data(n):
     res = np.abs(np.random.uniform(0, 1.0, n * m)).reshape(n, -1)
     features = np.random.randn(n * num_features).reshape(n, -1)
     generators = {
-        m: Models.UNIFORM(
+        m: Generators.UNIFORM(
             SearchSpace(
                 [InstantiationBase.parameter_from_json(item) for item in space]
             ),
@@ -138,7 +136,7 @@ def generate_meta_data_by_model(model, n, d=num_features):
     if model in base_models:
         model = base_models[model]
     space = model.get_parameter_search_space()
-    generator = Models.UNIFORM(
+    generator = Generators.UNIFORM(
         SearchSpace([InstantiationBase.parameter_from_json(item) for item in space]),
         deduplicate=False,
     )
@@ -160,14 +158,12 @@ METALEARNING_METADATA_BY_MODEL = {
         "sarima",
         "theta",
         "stlf",
-        "neuralprophet",
         "prophet",
     ]
 }
 
 candidate_models = {
     "holtwinters": HoltWintersModel,
-    "neuralprophet": NeuralProphetModel,
     "prophet": ProphetModel,
     "theta": ThetaModel,
     "stlf": STLFModel,
@@ -176,7 +172,6 @@ candidate_models = {
 
 candidate_params = {
     "holtwinters": HoltWintersParams,
-    "neuralprophet": NeuralProphetParams,
     "prophet": ProphetParams,
     "theta": ThetaParams,
     "stlf": STLFParams,
@@ -254,7 +249,6 @@ class testMetaLearner(TestCase):
 
 class MetaLearnModelSelectTest(TestCase):
     def test_initialize(self) -> None:
-
         self.assertRaises(ValueError, MetaLearnModelSelect, [])
 
         self.assertRaises(ValueError, MetaLearnModelSelect, [{}] * 40)
@@ -455,7 +449,6 @@ class MetaLearnHPTTest(TestCase):
             feature3.copy(),
         )
         for model in [
-            "neuralprophet",
             "prophet",
             "arima",
             "sarima",

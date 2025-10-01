@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import joblib
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from kats.consts import TimeSeriesData
@@ -59,7 +60,6 @@ class GMEnsemble:
         multi: bool = False,
         max_core: Optional[int] = None,
     ) -> None:
-
         if not isinstance(gmparam, GMParam):
             msg = f"gmparam should be GMParam object but receives {type(gmparam)}."
             logging.error(msg)
@@ -209,7 +209,6 @@ class GMEnsemble:
         split_data = split(self.splits, self.overlap, train_TSs, valid_TSs)
         # multi processing
         if self.multi:
-
             t0 = time.time()
             rds = np.random.randint(1, int(10000 * self.model_num), self.model_num)
             model_params = [
@@ -257,7 +256,7 @@ class GMEnsemble:
         self,
         # pyre-fixme[2]: Parameter annotation cannot be `Any`.
         idx: Any,
-        fcsts: List[np.ndarray],
+        fcsts: List[npt.NDArray],
         steps: int,
         raw: bool,
         # pyre-fixme[11]: Annotation `Timestamp` is not defined as a type.
@@ -295,7 +294,7 @@ class GMEnsemble:
         steps: int,
         test_batch_size: int = 500,
         raw: bool = False,
-    ) -> Dict[Any, Union[pd.DataFrame, List[np.ndarray]]]:
+    ) -> Dict[Any, Union[pd.DataFrame, List[npt.NDArray]]]:
         """Generate forecasts for the target time series.
 
         Args:

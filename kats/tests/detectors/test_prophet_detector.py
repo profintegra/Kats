@@ -5,9 +5,10 @@
 
 # pyre-strict
 
+import json
 import random
 from datetime import timedelta
-from typing import Union
+from typing import Type, Union
 from unittest import TestCase
 
 import numpy as np
@@ -26,6 +27,7 @@ from kats.detectors.prophet_detector import (
 from kats.utils.simulator import Simulator
 
 from parameterized.parameterized import parameterized
+from prophet import Prophet  # @manual
 
 START_DATE_TEST_DATA = "2018-01-01"
 
@@ -492,6 +494,41 @@ class TestProphetDetector(TestCase):
             "Expected removing outliers when training model to lower prediction RMSE",
         )
 
+    # pyre-fixme[56]: Pyre was not able to infer the type of the decorator `parameter...
+    @parameterized.expand([[0.01], [1.0], [1000000.0]])
+    def test_irregular_data_intervals(self, data_multiplier: float) -> None:
+        irregular_ts = TimeSeriesData(
+            time=pd.DatetimeIndex(
+                [
+                    pd.Timestamp("2024-12-02 15:00:00"),
+                    pd.Timestamp("2024-12-02 16:00:00"),
+                    pd.Timestamp("2024-12-02 17:00:00"),
+                    pd.Timestamp("2024-12-04 21:10:00"),
+                    pd.Timestamp("2024-12-04 21:30:00"),
+                    pd.Timestamp("2024-12-08 23:30:00"),
+                    pd.Timestamp("2024-12-09 00:10:00"),
+                    pd.Timestamp("2024-12-09 00:40:00"),
+                ]
+            ),
+            value=pd.Series(
+                [
+                    3.5,
+                    3.9,
+                    4.1,
+                    5.1,
+                    5.2,
+                    4.4,
+                    4.0,
+                    3.7,
+                ]
+            )
+            * data_multiplier,
+        )
+
+        model = ProphetDetectorModel(remove_outliers=True)
+        model.fit(irregular_ts)
+        # No ValueError raised
+
     def test_default_score_func(self) -> None:
         """Test that 'deviation_from_predicted_val' is used by default
 
@@ -900,6 +937,92 @@ class TestProphetDetector(TestCase):
         self.assertEqual(model.seasonalities_to_fit[SeasonalityTypes.WEEKEND], "auto")
         self.assertGreater(1.5, mae)
 
+    # pyre-fixme[56]: Pyre was not able to infer the type of the decorator `parameter...
+    @parameterized.expand(
+        [
+            (  # level shift at the beginning of the time series
+                0,
+                24 * 10,  # hours in 10 days
+            ),
+            (  # level shift at the end of the time series
+                24 * 90,  # hours in 90 days
+                24 * 100 - 1,  # hours in 100 days
+            ),
+            (  # level shift at the middle of the time series
+                24 * 50,  # hours in 50 days
+                24 * 60 - 1,  # hours in 60 days
+            ),
+        ]
+    )
+    def test_exclude_ts_range_from_model_training(
+        self,
+        level_shift_start: int,
+        level_shift_end: int,
+    ) -> None:
+        """
+        This test verifies that excluding data works. We introduce a large level shift to 10%
+        of the data at the beginning or ending of the time series.
+        Then we compare two models: one using the exclude_training_ranges parameter and
+        another where the noisy data is manually excluded before fitting.
+        Both approaches should produce identical results.
+        """
+        exclude_dataset_step = 24 * 10
+        ts = self.create_ts(
+            length=exclude_dataset_step * 10,
+            signal_to_noise_ratio=0,
+            freq="1h",
+            magnitude=10,
+        )
+        exclude_control_ts = self.create_ts(
+            seed=42,
+            length=exclude_dataset_step * 3,
+            signal_to_noise_ratio=0,
+            freq="1h",
+            magnitude=10,
+        )
+
+        ts.value[level_shift_start : level_shift_end + 1] += 100_000
+
+        # exclude data with new option
+        exclude_start = int(ts.time[level_shift_start].timestamp())
+        exclude_end = int(ts.time[level_shift_end].timestamp())
+
+        model_with_exclude_setting = ProphetDetectorModel(
+            exclude_training_ranges=[[exclude_start, exclude_end]],
+        )
+        model_with_exclude_setting.fit(
+            ts[exclude_dataset_step * 9 :],  # 90-100% of data
+            ts[: exclude_dataset_step * 9],  # history data 90% of data
+        )
+
+        # exclude data manually before fitting
+        model_exclude_data_before_fitting = ProphetDetectorModel()
+        model_exclude_data_before_fitting.fit(
+            ts[
+                (ts.time < ts.time[level_shift_start])
+                | (ts.time > ts.time[level_shift_end])
+            ],
+            None,
+        )
+
+        response_with_exclude_setting = model_with_exclude_setting.predict(
+            exclude_control_ts
+        )
+
+        response_exclude_data_before_fitting = (
+            model_exclude_data_before_fitting.predict(exclude_control_ts)
+        )
+
+        self.assertTrue(
+            all(
+                abs(exclude_option_value - control_value) < 1e-5
+                for exclude_option_value, control_value in zip(
+                    response_with_exclude_setting.scores.value.to_list(),
+                    response_exclude_data_before_fitting.scores.value.to_list(),
+                )
+            )
+        )
+
     def test_z_score_proportional_to_anomaly_magnitude(self) -> None:
         """Tests the z-score strategy on signals with different-sized anomalies
 
@@ -954,6 +1077,111 @@ class TestProphetDetector(TestCase):
         self.assertGreater(
             response2.scores.value[test_index], response1.scores.value[test_index]
         )
+
+    def test_serialized_prophet_version_key(self) -> None:
+        ts = self.create_random_ts(0, 100, 10, 2)
+        detector_model = ProphetDetectorModel()
+        detector_model.fit(ts[:90])
+        serialized_model = detector_model.serialize()
+        model_json = json.loads(serialized_model)
+        self.assertIn("__prophet_version", model_json)
+
+    def test_predictions_work_with_saturation_range(self) -> None:
+        # Given
+        ts = self.create_ts(length=100, magnitude=50, signal_to_noise_ratio=0.1)
+
+        # When
+        model = ProphetDetectorModel(saturation_range=[0.0, 100.0])
+        model.fit(ts[:80])
+        response = model.predict(ts[80:])
+
+        # Then
+        self.assertEqual(len(response.scores), 20)
+        self.assertIsNotNone(response.predicted_ts)
+        # pyre-ignore[16]: Optional type has no attribute `value`.
+        self.assertTrue(all(pd.notna(response.predicted_ts.value)))
+
+    def test_saturation_range_validation(self) -> None:
+        # Forbid non-empty lists with length != 2, non-lists, non-numeric list values, and min >= max.
+        invalid_values = [
+            [100.0],  # length != 2
+            [100.0, 100.0],  # length != 2
+            5,
+            [None, 100.0],
+            [50.0, None],
+            [None, None],
+            ["50.0", "100.0"],  # strings
+            [[], 100],  # non-numeric type
+            (50.0, 100.0),  # tuple
+            [50.0, 50.0],  # min == max
+            [100.0, 50.0],  # min > max
+        ]
+        for value in invalid_values:
+            with self.assertRaises(ValueError):
+                # pyre-ignore[6]: Incompatible parameter type
+                ProphetDetectorModel(saturation_range=value)
+
+        # Permit None, [], and min < max.
+        valid_values = [
+            None,
+            [],
+            [50.0, 100.0],
+        ]
+        for value in valid_values:
+            try:
+                ProphetDetectorModel(saturation_range=value)
+            except ValueError:
+                self.fail()
+
+    def test_saturation_range_enforcement(self, seed: int = 42) -> None:
+        """Test that logistic model respects saturation range while linear model does not"""
+        np.random.seed(seed)
+        sim = Simulator(n=500, freq="1h", start=pd.to_datetime("2025-01-01"))
+        sim.add_trend(magnitude=100.0)
+        ts = sim.stl_sim()
+
+        saturation_min, saturation_max = 30.0, 40.0
+
+        linear_model = ProphetDetectorModel()
+        linear_model.fit(ts[:80])
+        linear_response = linear_model.predict(ts[80:])
+
+        logistic_model = ProphetDetectorModel(
+            saturation_range=[saturation_min, saturation_max]
+        )
+        logistic_model.fit(ts[:80])
+        logistic_response = logistic_model.predict(ts[80:])
+
+        # Verify linear model is set with correct growth parameter
+        linear_model_dict = json.loads(linear_model.serialize())
+        self.assertEqual(linear_model_dict["growth"], "linear")
+
+        # Verify logistic model is set with correct growth parameter and saturation range
+        logistic_model_dict = json.loads(logistic_model.serialize())
+        self.assertEqual(logistic_model_dict["growth"], "logistic")
+        history_dict = json.loads(logistic_model_dict["history"])
+        history_data = history_dict["data"]
+        self.assertTrue(all(point_dict["floor"] == 30.0 for point_dict in history_data))
+        self.assertTrue(all(point_dict["cap"] == 40.0 for point_dict in history_data))
+
+        # pyre-ignore[16]: Optional type has no attribute `value`.
+        linear_predictions = linear_response.predicted_ts.value
+        linear_exceeds_bounds = (
+            linear_predictions.min() < 20.0  # << saturation_min
+            or linear_predictions.max() > 100  # >> saturation_max
+        )
+        self.assertTrue(linear_exceeds_bounds)
+
+        # Logistic growth saturation range doesn't strictly enforce bounds, but it
+        # limits the extent by which predictions exceed bounds. We allow the
+        # predictions to exceed bounds by saturation_range_buffer to account for this.
+        saturation_range_buffer = 5.0
+        logistic_predictions = logistic_response.predicted_ts.value
+        logistic_within_bounds = (
+            logistic_predictions.min() >= saturation_min - saturation_range_buffer
+            and logistic_predictions.max() <= saturation_max + saturation_range_buffer
+        )
+        self.assertTrue(logistic_within_bounds)
 
 
 class TestProphetTrendDetectorModel(TestCase):
